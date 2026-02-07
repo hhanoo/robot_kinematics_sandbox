@@ -1,0 +1,110 @@
+<?xml version="1.0"?>
+<robot name="robot_kinematics_sandbox" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ===============================
+       DH parameters (Classic DH)
+       units: meter, radian
+       =============================== -->
+  <xacro:property name="a1" value="0.0"/>
+  <xacro:property name="d1" value="0.1807"/>
+  <xacro:property name="alpha1" value="${pi/2}"/>
+
+  <xacro:property name="a2" value="-0.6127"/>
+  <xacro:property name="d2" value="0.0"/>
+  <xacro:property name="alpha2" value="0.0"/>
+
+  <xacro:property name="a3" value="-0.57155"/>
+  <xacro:property name="d3" value="0.0"/>
+  <xacro:property name="alpha3" value="0.0"/>
+
+  <xacro:property name="a4" value="0.0"/>
+  <xacro:property name="d4" value="0.17415"/>
+  <xacro:property name="alpha4" value="${pi/2}"/>
+
+  <xacro:property name="a5" value="0.0"/>
+  <xacro:property name="d5" value="0.11985"/>
+  <xacro:property name="alpha5" value="${-pi/2}"/>
+
+  <xacro:property name="a6" value="0.0"/>
+  <xacro:property name="d6" value="0.11655"/>
+  <xacro:property name="alpha6" value="0.0"/>
+
+  <!-- ===============================
+       Macros
+       =============================== -->
+
+  <!-- Simple visual link (cylinder) -->
+  <xacro:macro name="simple_link" params="name length radius">
+    <link name="${name}">
+      <visual>
+        <!-- Cylinder axis is Z (원통 축은 Z) -->
+        <origin xyz="0 0 ${length/2.0}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder length="${length}" radius="${radius}"/>
+        </geometry>
+      </visual>
+    </link>
+  </xacro:macro>
+
+  <!-- Revolute joint from Classic DH -->
+  <xacro:macro name="dh_revolute" params="name parent child a d alpha">
+    <joint name="${name}" type="revolute">
+      <parent link="${parent}"/>
+      <child link="${child}"/>
+
+      <!-- Classic DH: xyz=[a,0,d], rpy=[alpha,0,0] -->
+      <origin xyz="${a} 0 ${d}" rpy="${alpha} 0 0"/>
+      <axis xyz="0 0 1"/>
+
+      <!-- Visualization limits -->
+      <limit lower="-6.283" upper="6.283" effort="200" velocity="3.0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ===============================
+       Links
+       =============================== -->
+  <xacro:simple_link name="base_link" length="0.05" radius="0.06"/>
+  <xacro:simple_link name="link1" length="0.10" radius="0.04"/>
+  <xacro:simple_link name="link2" length="0.10" radius="0.03"/>
+  <xacro:simple_link name="link3" length="0.10" radius="0.03"/>
+  <xacro:simple_link name="link4" length="0.08" radius="0.025"/>
+  <xacro:simple_link name="link5" length="0.08" radius="0.02"/>
+  <xacro:simple_link name="link6" length="0.06" radius="0.02"/>
+
+  <!-- ===============================
+       Joints (Skeleton)
+       =============================== -->
+  <xacro:dh_revolute name="shoulder_pan_joint"
+                     parent="base_link" child="link1"
+                     a="${a1}" d="${d1}" alpha="${alpha1}"/>
+
+  <xacro:dh_revolute name="shoulder_lift_joint"
+                     parent="link1" child="link2"
+                     a="${a2}" d="${d2}" alpha="${alpha2}"/>
+
+  <xacro:dh_revolute name="elbow_joint"
+                     parent="link2" child="link3"
+                     a="${a3}" d="${d3}" alpha="${alpha3}"/>
+
+  <xacro:dh_revolute name="wrist_1_joint"
+                     parent="link3" child="link4"
+                     a="${a4}" d="${d4}" alpha="${alpha4}"/>
+
+  <xacro:dh_revolute name="wrist_2_joint"
+                     parent="link4" child="link5"
+                     a="${a5}" d="${d5}" alpha="${alpha5}"/>
+
+  <xacro:dh_revolute name="wrist_3_joint"
+                     parent="link5" child="link6"
+                     a="${a6}" d="${d6}" alpha="${alpha6}"/>
+
+  <!-- Tool frame -->
+  <link name="tool0"/>
+  <joint name="tool0_fixed" type="fixed">
+    <parent link="link6"/>
+    <child link="tool0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+</robot>

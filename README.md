@@ -169,7 +169,7 @@ RViz visualization
 
 ## 로드맵
 
-- [ ] DH 기반 가상 6축 로봇 URDF 작성
+- [x] DH 기반 가상 6축 로봇 URDF 작성
 - [ ] STL 기반 UR10e 모델 정렬
 - [ ] 수치 IK (DLS) 구현
 - [ ] Cartesian trajectory → joint trajectory 변환
