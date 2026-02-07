@@ -33,19 +33,6 @@
        Macros
        =============================== -->
 
-  <!-- Simple visual link (cylinder) -->
-  <xacro:macro name="simple_link" params="name length radius">
-    <link name="${name}">
-      <visual>
-        <!-- Cylinder axis is Z (원통 축은 Z) -->
-        <origin xyz="0 0 ${length/2.0}" rpy="0 0 0"/>
-        <geometry>
-          <cylinder length="${length}" radius="${radius}"/>
-        </geometry>
-      </visual>
-    </link>
-  </xacro:macro>
-
   <!-- Revolute joint from Classic DH -->
   <xacro:macro name="dh_revolute" params="name parent child a d alpha">
     <joint name="${name}" type="revolute">
@@ -64,13 +51,21 @@
   <!-- ===============================
        Links
        =============================== -->
-  <xacro:simple_link name="base_link" length="0.05" radius="0.06"/>
-  <xacro:simple_link name="link1" length="0.10" radius="0.04"/>
-  <xacro:simple_link name="link2" length="0.10" radius="0.03"/>
-  <xacro:simple_link name="link3" length="0.10" radius="0.03"/>
-  <xacro:simple_link name="link4" length="0.08" radius="0.025"/>
-  <xacro:simple_link name="link5" length="0.08" radius="0.02"/>
-  <xacro:simple_link name="link6" length="0.06" radius="0.02"/>
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_description/meshes/base_link.STL"
+              scale="1 1 1"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="link1"/>
+  <link name="link2"/>
+  <link name="link3"/>
+  <link name="link4"/>
+  <link name="link5"/>
+  <link name="link6"/>
 
   <!-- ===============================
        Joints (Skeleton)
