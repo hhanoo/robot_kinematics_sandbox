@@ -1,0 +1,48 @@
+# IDEs
+.idea/
+.vscode/
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# C++
+build/
+.clang-format
+.clangd
+*.pro.user
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment
+.env
+*.env
+config.ini
+
+# Log
+logs/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.*.backup
+*_backup.txt
+
+# uv
+*.pyc
+.python-version
+
+# ROS2
+build/
+install/
+log/
+
+# Claude
+CLAUDE.md
