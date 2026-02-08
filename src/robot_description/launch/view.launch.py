@@ -1,17 +1,26 @@
 from launch import LaunchDescription
+from launch.substitutions import Command, PathJoinSubstitution
 from launch_ros.actions import Node
-from launch.substitutions import Command
-from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import PathJoinSubstitution
 from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
+
 
 def generate_launch_description():
+    # xacro path
     xacro_file = PathJoinSubstitution([
         FindPackageShare('robot_description'),
         'urdf',
         'ur10e.urdf.xacro'
     ])
 
+    # rviz config path
+    rviz_config = PathJoinSubstitution([
+        FindPackageShare('robot_description'),
+        'rviz',
+        'view_robot.rviz'
+    ])
+
+    # robot_description parameter
     robot_description = ParameterValue(
         Command(['xacro ', xacro_file]),
         value_type=str
@@ -32,6 +41,7 @@ def generate_launch_description():
         Node(
             package='rviz2',
             executable='rviz2',
+            arguments=['-d', rviz_config],
             output='screen'
         ),
     ])
