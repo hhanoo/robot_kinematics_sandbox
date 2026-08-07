@@ -109,7 +109,20 @@ RViz visualization
 
 ## 빠른 시작
 
-<!-- 초기 bringup 완성 후 작성 -->
+```bash
+# 1. Docker 설정 파일 준비 (최초 1회, 생략 시 자동 생성됨)
+cp docker/config.sh.example docker/config.sh
+
+# 2. Docker 이미지 빌드
+./docker/build.sh
+
+# 3. 컨테이너 진입 (항상 run.sh 사용, 이미 실행 중이면 자동 attach)
+./docker/run.sh
+
+# 4. 컨테이너 내부에서
+build       # colcon build
+run-view    # RViz에서 UR10e 모델 확인
+```
 
 ---
 
@@ -133,7 +146,21 @@ RViz visualization
 
 ## 실행
 
-<!-- 추후 정리 -->
+모든 빌드/테스트/실행은 Docker 컨테이너 내부에서 수행한다. (`./docker/run.sh`로 진입)
+
+### Docker Commands
+
+컨테이너 진입 시 `cmd-help`로 전체 목록이 출력된다.
+
+| Command | 설명 | 참고 |
+| --- | --- | --- |
+| `build` | `colcon build --symlink-install` + overlay source | 워크스페이스: `/ros2_ws` |
+| `test-kinematics` | FK / Jacobian / IK 단위 테스트 (pytest) | ROS 런타임 불필요 |
+| `test-trajectory` | 궤적 생성 단위 테스트 (pytest) | ROS 런타임 불필요 |
+| `run-view` | UR10e 모델 뷰어 (RViz + joint_state_publisher_gui) | `robot_description` |
+| `run-demo` | FK/IK/궤적 데모 시퀀스 재생 (RViz) | `robot_bringup` (예정) |
+| `source-config` | `docker/config.sh` 재로드 | |
+| `cmd-help` | 명령 목록 출력 | 셸 진입 시 자동 출력 |
 
 ---
 
