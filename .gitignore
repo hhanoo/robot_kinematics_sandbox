@@ -1,48 +1,51 @@
+# System
+.DS_Store
+Thumbs.db
+
 # IDEs
 .idea/
 .vscode/
-.cache/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-
-# C++
-build/
-.clang-format
-.clangd
 *.pro.user
+
+# Environment
+.env
+*.env
 
 # Virtual environment
 .venv/
 venv/
 
-# Environment
-.env
-*.env
-config.ini
-
-# Log
-logs/
-
-# System
-.DS_Store
-Thumbs.db
-
-# Backup files
-*.*.backup
-*_backup.txt
-
-# uv
+# Python
+__pycache__/
+*.py[cod]
 *.pyc
+*$py.class
+*.egg-info/
 .python-version
+
+# C++
+.clang-format
+.clangd
+.ca
 
 # ROS2
 build/
 install/
 log/
 
+# Docker
+docker/config.sh
+docker/client/config.sh
+docker/llm_planner/config.sh
+
+# Backup
+*.*.backup
+*_backup.txt
+
+# Prettier
+.prettierignore
+.prettierrc
+
 # Claude
+.claude/
 CLAUDE.md

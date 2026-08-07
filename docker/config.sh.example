@@ -1,0 +1,16 @@
+#!/bin/bash
+# Project docker config — copy to docker/config.sh (config.sh is git-ignored)
+# .vscode/clangd-docker.sh reads CONTAINER_NAME from this file.
+
+# Docker image name (used in build.sh and run.sh)
+IMAGE_NAME="robot-kinematics-sandbox:latest"
+
+# Docker container name (used in run.sh)
+CONTAINER_NAME="robot-kinematics-sandbox"
+
+# ROS 2 domain ID for network isolation (used in run.sh)
+ROS_DOMAIN_ID="98"
+
+# X11 .Xauthority path on host (used in run.sh)
+# - Mounted into container as /root/.Xauthority for RViz display.
+XAUTHORITY_PATH="$HOME/.Xauthority"
