@@ -19,10 +19,10 @@
 - [시스템 구조](#시스템-구조)
 - [프로젝트 구조](#프로젝트-구조)
 - [구현 상세](#구현-상세)
-  - [robot_description](#robot_description)
-  - [robot_kinematics](#robot_kinematics)
-  - [robot_trajectory](#robot_trajectory)
-  - [robot_bringup](#robot_bringup)
+  - [robot\_description](#robot_description)
+  - [robot\_kinematics](#robot_kinematics)
+  - [robot\_trajectory](#robot_trajectory)
+  - [robot\_bringup](#robot_bringup)
 - [빠른 시작](#빠른-시작)
   - [Option 1: Docker (권장)](#option-1-docker-권장)
   - [Option 2: Native](#option-2-native)
@@ -53,7 +53,7 @@
 - [문제 해결](#문제-해결)
   - [1. RViz 창이 뜨지 않음](#1-rviz-창이-뜨지-않음)
   - [2. run.sh 실행 시 이미지 없음 오류](#2-runsh-실행-시-이미지-없음-오류)
-  - [3. robot_kinematics 모듈 import 오류](#3-robot_kinematics-모듈-import-오류)
+  - [3. robot\_kinematics 모듈 import 오류](#3-robot_kinematics-모듈-import-오류)
 - [로드맵](#로드맵)
 - [라이선스](#라이선스)
 - [Maintainer](#maintainer)
@@ -190,6 +190,12 @@ robot_kinematics_sandbox/
 │   ├── commands.sh                  # 컨테이너 내부 명령 (build, run-demo 등)
 │   └── config.sh.example            # 이미지/컨테이너/도메인 설정 템플릿
 │
+├── docs/                            # 이론·유도 문서 (코드와 1:1 대응)
+│   ├── README.md                    # 인덱스, 읽는 순서, 표기 규약
+│   ├── robot_description.md         # DH → URDF 변환
+│   ├── robot_kinematics.md          # DH / FK / Jacobian / DLS IK
+│   └── robot_trajectory.md          # quintic / slerp / pose 경로 / seed IK
+│
 └── README.md
 ```
 
@@ -197,7 +203,11 @@ robot_kinematics_sandbox/
 
 ## 구현 상세
 
+> 각 알고리즘의 이론적 배경과 유도 과정은 [docs/](docs/)에 정리.
+
 ### robot_description
+
+> 이론: [docs/robot_description.md](docs/robot_description.md)
 
 - **urdf/ur10e.urdf.xacro**
   - 표준 DH 한 행 (θ, d, a, α)를 조인트 쌍으로 전개하는 `dh_revolute` 매크로가 핵심
@@ -206,6 +216,8 @@ robot_kinematics_sandbox/
   - 기구학은 DH 값만으로 결정되고, 각 링크의 visual origin은 메쉬 정렬 전용이라 FK/IK에 영향 없음
 
 ### robot_kinematics
+
+> 이론: [docs/robot_kinematics.md](docs/robot_kinematics.md)
 
 - **dh.py**
   - UR10e 표준 DH 테이블 (a, d, α)와 링크 변환 `dh_transform = Rz(θ)·Tz(d)·Tx(a)·Rx(α)`
@@ -227,6 +239,8 @@ robot_kinematics_sandbox/
   - 검증: FK→IK 왕복 (위치 < 1mm, 자세 < 0.1°), 도달 불가 목표의 정상 실패, 특이점 시작 안정성
 
 ### robot_trajectory
+
+> 이론: [docs/robot_trajectory.md](docs/robot_trajectory.md)
 
 - **joint_traj.py**
   - rest-to-rest quintic 프로파일 `s(τ) = 10τ³ − 15τ⁴ + 6τ⁵` (양끝 속도·가속도 0)
