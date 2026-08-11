@@ -35,6 +35,10 @@ test-trajectory() {
     cd /ros2_ws/src/robot_trajectory && python3 -m pytest "$@"
 }
 
+test-control() {
+    cd /ros2_ws/src/robot_control && python3 -m pytest "$@"
+}
+
 # ===== Launchers =====
 run-view() {
     source-ros-ws
@@ -44,6 +48,11 @@ run-view() {
 run-demo() {
     source-ros-ws
     ros2 launch robot_bringup demo.launch.py "$@"
+}
+
+run-control() {
+    source-ros-ws
+    ros2 launch robot_control control.launch.py "$@"
 }
 
 # ===== Help =====
@@ -57,11 +66,13 @@ cmd-help() {
     printf "  Tests (pytest, no ROS runtime needed):\n"
     printf "    %-18s - %s\n" "test-kinematics"  "FK / Jacobian / IK unit tests"
     printf "    %-18s - %s\n" "test-trajectory"  "Trajectory generation unit tests"
+    printf "    %-18s - %s\n" "test-control"    "Motion server + conversions unit tests"
     printf "\n"
 
     printf "  Launchers:\n"
     printf "    %-18s - %s\n" "run-view"         "UR10e model viewer (RViz + joint_state_publisher_gui)"
     printf "    %-18s - %s\n" "run-demo"         "FK/IK/trajectory demo sequence (RViz)"
+    printf "    %-18s - %s\n" "run-control"      "Motion server with RViz (interactive control)"
     printf "\n"
 
     printf "  Config / Help:\n"

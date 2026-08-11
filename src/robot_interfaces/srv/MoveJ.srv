@@ -1,0 +1,7 @@
+# Target tool0 pose in base_link frame
+geometry_msgs/Pose target
+# 0.0 = shortest duration within velocity/acceleration limits
+float64 duration
+---
+bool success
+string message
