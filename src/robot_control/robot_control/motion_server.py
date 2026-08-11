@@ -21,7 +21,7 @@ import math
 
 import numpy as np
 import rclpy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped
 from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
@@ -32,6 +32,7 @@ from robot_control.state_machine import MotionStateMachine
 from robot_interfaces.srv import MoveJ, MoveL
 from robot_kinematics.fk import fk
 from robot_kinematics.ik import solve_ik
+from robot_kinematics.jog import jog_step
 from robot_trajectory.cartesian_traj import cartesian_to_joint, linear_pose_path
 from robot_trajectory.joint_traj import quintic_joint_trajectory
 
@@ -60,18 +61,24 @@ class MotionServer(Node):
         self.declare_parameter("v_max", 2.0)
         self.declare_parameter("a_max", 4.0)
         self.declare_parameter("linear_speed", 0.1)
+        self.declare_parameter("jog_max_linear", 0.25)
+        self.declare_parameter("jog_max_angular", 1.0)
+        self.declare_parameter("jog_deadman_timeout", 0.3)
         rate = self.get_parameter("rate").value
         home = self.get_parameter("home").value
         self.v_max = self.get_parameter("v_max").value
         self.a_max = self.get_parameter("a_max").value
         self.linear_speed = self.get_parameter("linear_speed").value
+        self.jog_max_lin = self.get_parameter("jog_max_linear").value
+        self.jog_max_ang = self.get_parameter("jog_max_angular").value
         self.dt = 1.0 / rate
 
         # State machine, backend, trajectory buffer
-        self.sm = MotionStateMachine()
+        self.sm = MotionStateMachine(self.get_parameter("jog_deadman_timeout").value)
         self.backend = SimBackend(self, JOINT_NAMES, home)
         self._traj = None
         self._traj_i = 0
+        self._jog_twist = np.zeros(6)
 
         # Publishers
         self.pub_state = self.create_publisher(String, "motion_state", 10)
@@ -83,6 +90,7 @@ class MotionServer(Node):
         self.create_service(MoveJ, "~/move_j", self.on_move_j)
         self.create_service(MoveL, "~/move_l", self.on_move_l)
         self.create_service(Trigger, "~/stop", self.on_stop)
+        self.create_subscription(TwistStamped, "jog_twist", self.on_jog_twist, 10)
 
         # Playback timer
         self.create_timer(self.dt, self.on_timer)
@@ -155,17 +163,36 @@ class MotionServer(Node):
         self._traj_i = 0
         self.sm.enter_moving()
 
+    def on_jog_twist(self, msg):
+        # Clamp per-axis groups, then hand to the state machine
+        t = msg.twist
+        lin = np.array([t.linear.x, t.linear.y, t.linear.z])
+        ang = np.array([t.angular.x, t.angular.y, t.angular.z])
+        n_lin, n_ang = np.linalg.norm(lin), np.linalg.norm(ang)
+        if n_lin > self.jog_max_lin:
+            lin *= self.jog_max_lin / n_lin
+        if n_ang > self.jog_max_ang:
+            ang *= self.jog_max_ang / n_ang
+        if self.sm.on_jog(self._now()):
+            self._jog_twist = np.concatenate([lin, ang])
+
+    def _now(self):
+        return self.get_clock().now().nanoseconds * 1e-9
+
     # =========================================================
     # Playback timer
     # =========================================================
     def on_timer(self):
         # 1. Advance the trajectory or hold position
+        self.sm.tick(self._now())
         if self.sm.state == MotionStateMachine.MOVING and self._traj is not None:
             q = self._traj[self._traj_i]
             self._traj_i += 1
             if self._traj_i >= len(self._traj):
                 self._traj = None
                 self.sm.finish_move()
+        elif self.sm.state == MotionStateMachine.JOG:
+            q = jog_step(self.backend.q, self._jog_twist, self.dt)
         else:
             q = self.backend.q
         self.backend.write(q)
