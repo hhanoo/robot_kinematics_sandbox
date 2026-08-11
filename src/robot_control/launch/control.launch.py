@@ -44,7 +44,16 @@ def generate_launch_description():
     )
 
     # ===============================
-    # 4. RViz
+    # 4. Goal marker
+    # ===============================
+    marker_server = Node(
+        package="robot_control",
+        executable="marker_server",
+        output="screen",
+    )
+
+    # ===============================
+    # 5. RViz
     # ===============================
     rviz_config = PathJoinSubstitution(
         [FindPackageShare("robot_control"), "rviz", "control.rviz"]
@@ -57,4 +66,6 @@ def generate_launch_description():
         output="screen",
     )
 
-    return LaunchDescription([use_rviz, robot_state_publisher, motion_server, rviz])
+    return LaunchDescription(
+        [use_rviz, robot_state_publisher, motion_server, marker_server, rviz]
+    )
