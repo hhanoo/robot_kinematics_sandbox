@@ -35,6 +35,10 @@ test-trajectory() {
     cd /ros2_ws/src/robot_trajectory && python3 -m pytest "$@"
 }
 
+test-bringup() {
+    cd /ros2_ws/src/robot_bringup && python3 -m pytest "$@"
+}
+
 test-control() {
     cd /ros2_ws/src/robot_control && python3 -m pytest "$@"
 }
@@ -42,7 +46,7 @@ test-control() {
 # ===== Launchers =====
 run-view() {
     source-ros-ws
-    ros2 launch robot_description view.launch.py "$@"
+    ros2 launch robot_description view_robot.launch.py "$@"
 }
 
 run-demo() {
@@ -71,6 +75,7 @@ cmd-help() {
     printf "  Tests (pytest, no ROS runtime needed):\n"
     printf "    %-18s - %s\n" "test-kinematics"  "FK / Jacobian / IK unit tests"
     printf "    %-18s - %s\n" "test-trajectory"  "Trajectory generation unit tests"
+    printf "    %-18s - %s\n" "test-bringup"     "Demo sequence unit tests"
     printf "    %-18s - %s\n" "test-control"     "State machine + conversions unit tests"
     printf "\n"
 
