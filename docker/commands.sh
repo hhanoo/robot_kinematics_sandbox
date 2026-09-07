@@ -55,6 +55,11 @@ run-control() {
     ros2 launch robot_control control.launch.py "$@"
 }
 
+run-teleop() {
+    source-ros-ws
+    ros2 run robot_control teleop_keyboard "$@"
+}
+
 # ===== Help =====
 cmd-help() {
     printf "\n[robot_kinematics_sandbox] Commands:\n\n"
@@ -66,13 +71,14 @@ cmd-help() {
     printf "  Tests (pytest, no ROS runtime needed):\n"
     printf "    %-18s - %s\n" "test-kinematics"  "FK / Jacobian / IK unit tests"
     printf "    %-18s - %s\n" "test-trajectory"  "Trajectory generation unit tests"
-    printf "    %-18s - %s\n" "test-control"    "Motion server + conversions unit tests"
+    printf "    %-18s - %s\n" "test-control"     "State machine + conversions unit tests"
     printf "\n"
 
     printf "  Launchers:\n"
     printf "    %-18s - %s\n" "run-view"         "UR10e model viewer (RViz + joint_state_publisher_gui)"
     printf "    %-18s - %s\n" "run-demo"         "FK/IK/trajectory demo sequence (RViz)"
-    printf "    %-18s - %s\n" "run-control"      "Motion server with RViz (interactive control)"
+    printf "    %-18s - %s\n" "run-control"      "Motion server + goal marker + RViz (runtime control)"
+    printf "    %-18s - %s\n" "run-teleop"       "Keyboard Cartesian jog (separate shell, publishes /jog_twist)"
     printf "\n"
 
     printf "  Config / Help:\n"

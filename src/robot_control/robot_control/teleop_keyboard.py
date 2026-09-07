@@ -8,9 +8,10 @@ deadman timeout (key release cannot be detected in a terminal; OS key
 repeat keeps commands flowing while a key is held).
 
 Keys: w/s +-x  a/d +-y  r/f +-z  u/o +-rx  i/k +-ry  j/l +-rz
-      +/- speed scale   q quit
+      +/- speed scale   ESC quit
 """
 
+import os
 import select
 import sys
 import termios
@@ -36,7 +37,7 @@ HELP = (
     "\n[teleop_keyboard]\n"
     "  w/s: +-x   a/d: +-y   r/f: +-z\n"
     "  u/o: +-rx  i/k: +-ry  j/l: +-rz\n"
-    "  +/-: speed scale   q: quit\n"
+    "  +/-: speed scale   ESC: quit\n"
 )
 
 
@@ -56,9 +57,13 @@ def main(args=None):
             ready, _, _ = select.select([sys.stdin], [], [], 0.1)
             if not ready:
                 continue
-            key = sys.stdin.read(1)
-            if key == "q":
+            # Unbuffered read keeps an escape sequence in one chunk
+            data = os.read(sys.stdin.fileno(), 8)
+            if data[:1] == b"\x1b":
+                if data[1:2] in (b"[", b"O"):  # arrow keys etc. (CSI/SS3)
+                    continue
                 break
+            key = data.decode(errors="ignore")[-1:]
             if key in ("+", "="):
                 scale *= 1.25
                 print(f"scale: {scale:.2f}")
