@@ -25,7 +25,7 @@
 
 ## 읽는 순서
 
-처음 보는 경우 **robot_kinematics → robot_trajectory → robot_description** 순서를 권장함.
+처음 보는 경우 **robot_kinematics, robot_trajectory, robot_description**의 순서를 권장함.
 
 ```
 robot_kinematics.md     DH → FK → Jacobian → IK
@@ -59,7 +59,7 @@ URDF 모델링만 필요하다면 이 문서만 따로 읽어도 됨.
 1. **문제** : 무엇을 왜 계산하는가
 2. **유도** : 결과 식만 던지지 않고 단계별로
 3. **코드 대응** : 실제 발췌와 수식의 대조
-4. **함정** : 인덱스 규약, 행 순서 등 틀리기 쉬운 지점
+4. **주의점** : 인덱스 규약, 행 순서 등 틀리기 쉬운 지점
 5. **검증** : 해당 pytest가 무엇을 보장하는가
 
 5번을 매 절에 둔 이유는, 이 프로젝트의 테스트가 단순 회귀 방지가 아니라 **유도가 맞았는지를 확인하는 장치**이기 때문임.  

@@ -112,7 +112,7 @@ CAD (DAE) + DH parameters
 
 **기하학적 Jacobian**: 각 관절 축의 `[z × (pₑ−pᵢ); z]` 열로 구성한 6×6 행렬이며 수치미분(중앙차분)과 대조 검증
 
-**DLS 반복 IK**: `Δq = Jᵀ(JJᵀ + λ²I)⁻¹e` 업데이트로 특이점에서도 발산하지 않는 수치 IK. 미수렴 시 예외 없이 `IKResult` 반환
+**DLS 반복 IK**: `Δq = Jᵀ(JJᵀ + λ²I)⁻¹e` 업데이트로 특이점에서도 발산하지 않는 수치 IK로, 미수렴 시 예외 없이 `IKResult`를 반환
 
 **5차 다항식 관절 궤적**: 5차 다항식 rest-to-rest 프로파일을 관절 속도와 가속도 한계 기반으로 시간 파라미터화
 
@@ -239,7 +239,7 @@ robot_kinematics_sandbox/
 > 이론: [docs/robot_description.md](docs/robot_description.md)
 
 - **urdf/ur10e.urdf.xacro**
-  - 표준 DH 한 행 (θ, d, a, α)를 조인트 쌍으로 전개하는 `dh_revolute` 매크로가 핵심
+  - 핵심은 표준 DH 한 행 (θ, d, a, α)를 조인트 쌍으로 전개하는 `dh_revolute` 매크로
   - revolute 조인트: `Tz(d)` 이동 + z축 회전(θ) / 뒤따르는 fixed 조인트: `Tx(a)·Rx(α)`
   - URDF 체인 전체가 표준 DH 곱과 동일해지는 구조
   - 기구학은 DH 값만으로 결정되고, 각 링크의 visual origin은 메쉬 정렬 전용이라 FK/IK에 영향 없음

@@ -97,8 +97,8 @@ $$
 
 좌우 두 항이 각각 **URDF 조인트 하나의 형태**와 정확히 일치함.
 
-- 왼쪽: origin = $T_z(d)$, axis = z → **revolute joint**
-- 오른쪽: origin = $T_x(a) R_x(\alpha)$, 관절 변수 없음 → **fixed joint**
+- **왼쪽 항, revolute joint** : origin = $T_z(d)$, axis = z
+- **오른쪽 항, fixed joint** : origin = $T_x(a) R_x(\alpha)$, 관절 변수 없음
 
 origin이 `Trans` 후 `Rot` 순서이므로, $T_x(a) R_x(\alpha)$는 URDF origin 문법 `xyz="a 0 0" rpy="α 0 0"`으로 그대로 표현됨.
 
@@ -243,9 +243,9 @@ np.testing.assert_allclose(T_dh[:3, 3], T_urdf[:3, 3], atol=1e-6)
 np.testing.assert_allclose(T_dh[:3, :3], T_urdf[:3, :3], atol=1e-6)
 ```
 
-무작위 관절각 100개에서 위치와 자세 모두 $10^{-6}$ 이내이며, 이 테스트가 잡아내는 것은 다음과 같음.
+무작위 관절각 100개에서 위치와 자세 모두 $10^{-6}$ 이내이며, 이 테스트가 탐지하는 오류는 아래와 같음.
 
-- 조인트 분해 순서 오류 ([1.3\_한 origin에 합칠 때의 문제](#13-한-origin에-합칠-때의-문제)에서 다룬 실패 모드)
+- 조인트 분해 순서 오류, 즉 한 origin에 합쳤을 때 생기는 오류 ([1.3\_한 origin에 합칠 때의 문제](#13-한-origin에-합칠-때의-문제))
 - xacro property와 `dh.py` 값 불일치
 - `rpy` 회전 순서 착각
 
