@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from robot_kinematics.dh import UR10E_DH, dh_transform
+from robot_kinematics.dh import dh_transform
 from robot_kinematics.fk import fk, fk_frames
 
 XACRO_PATH = (

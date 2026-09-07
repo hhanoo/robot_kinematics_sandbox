@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_kinematics</name>
   <version>0.1.0</version>
-  <description>DH-based FK / Jacobian / DLS IK core (pure numpy, ROS-independent)</description>
+  <description>URDF-driven FK / Jacobian / DLS IK core (pure numpy)</description>
   <maintainer email="woo980711@gmail.com">hhanoo</maintainer>
   <license>Apache-2.0</license>
 

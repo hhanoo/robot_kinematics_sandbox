@@ -88,7 +88,7 @@ def _pose_error(target, T):
 def solve_ik(
     target,
     q0,
-    dh=None,
+    chain=None,
     damping=0.05,
     max_iters=200,
     tol_pos=1e-5,
@@ -104,7 +104,7 @@ def solve_ik(
         target (np.ndarray): Goal pose, 4x4 homogeneous transform (base frame)
         q0 (array-like): Seed joint angles [rad]; DLS is a local method, so it
                          converges to the solution branch nearest to this seed
-        dh (np.ndarray): DH table (a, d, alpha) per joint; None = UR10E_DH
+        chain (Chain): Kinematic chain; None = the bundled robot
         damping (float): DLS damping lambda; larger = stable near
             singularities but slower, smaller = faster but can overshoot
         max_iters (int): Iteration limit before giving up
@@ -121,7 +121,7 @@ def solve_ik(
 
     for it in range(max_iters):
         # 1. Current 6D error to target (position + rotation vector)
-        e = _pose_error(target, fk(q, dh))
+        e = _pose_error(target, fk(q, chain))
         pos_err = float(np.linalg.norm(e[:3]))
         rot_err = float(np.linalg.norm(e[3:]))
 
@@ -130,7 +130,7 @@ def solve_ik(
             return IKResult(True, q, pos_err, rot_err, it)
 
         # 3. DLS step (lambda^2 keeps it bounded at singularities)
-        J = jacobian(q, dh)
+        J = jacobian(q, chain)
         dq = J.T @ np.linalg.solve(J @ J.T + lam2 * np.eye(6), e)
 
         # 4. Clamp step size (Jacobian is only a local approximation)
@@ -142,7 +142,7 @@ def solve_ik(
         q += dq
 
     # 6. Out of iterations: report the final state as-is
-    e = _pose_error(target, fk(q, dh))
+    e = _pose_error(target, fk(q, chain))
     pos_err = float(np.linalg.norm(e[:3]))
     rot_err = float(np.linalg.norm(e[3:]))
     success = pos_err < tol_pos and rot_err < tol_rot

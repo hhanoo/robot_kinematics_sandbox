@@ -1,23 +1,14 @@
-"""UR10e standard DH parameters (must stay in sync with
-src/robot_description/urdf/ur10e.urdf.xacro)."""
+"""Standard DH link transform.
+
+Reference for the ``dh_revolute`` macro in robot_description: the macro
+expands one DH row into a revolute joint (d, theta) plus a fixed joint
+(a, alpha), and this function is the same product in one step. Kinematics
+runs off the URDF, so nothing here is on the runtime path.
+"""
 
 import math
 
 import numpy as np
-
-# Standard DH rows: (a, d, alpha). theta comes from the joint angle.
-# fmt: off
-UR10E_DH = np.array(
-    [
-        [0.0,      0.1807,   math.pi / 2],   # joint 1
-        [-0.6127,  0.0,      0.0        ],   # joint 2
-        [-0.57155, 0.0,      0.0        ],   # joint 3
-        [0.0,      0.17415,  math.pi / 2],   # joint 4
-        [0.0,      0.11985, -math.pi / 2],   # joint 5
-        [0.0,      0.11655,  0.0        ],   # joint 6
-    ]
-)
-# fmt: on
 
 
 def dh_transform(theta, d, a, alpha):

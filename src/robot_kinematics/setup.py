@@ -33,7 +33,7 @@ setup(
     zip_safe=True,
     maintainer="hhanoo",
     maintainer_email="woo980711@gmail.com",
-    description="DH-based FK / Jacobian / DLS IK core (pure numpy, ROS-independent)",
+    description="URDF-driven FK / Jacobian / DLS IK core (pure numpy)",
     license="Apache-2.0",
     # =========================================================
     # Extra dependencies (for testing, etc.)
