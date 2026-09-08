@@ -73,9 +73,9 @@ cmd-help() {
     printf "\n"
 
     printf "  Tests (pytest, no ROS runtime needed):\n"
-    printf "    %-18s - %s\n" "test-kinematics"  "FK / Jacobian / IK unit tests"
+    printf "    %-18s - %s\n" "test-kinematics"  "FK / Jacobian / IK / collision tests"
     printf "    %-18s - %s\n" "test-trajectory"  "Trajectory generation unit tests"
-    printf "    %-18s - %s\n" "test-bringup"     "Demo sequence unit tests"
+    printf "    %-18s - %s\n" "test-bringup"     "Demo sequence + collision tests"
     printf "    %-18s - %s\n" "test-control"     "State machine + conversions unit tests"
     printf "\n"
 

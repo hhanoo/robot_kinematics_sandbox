@@ -10,6 +10,9 @@ immediately in the service response.
 Services:
 - ~/move_j (robot_interfaces/MoveJ): one IK solve + joint quintic
 - ~/move_l (robot_interfaces/MoveL): linear pose path + seeded IK
+
+Both goals are screened for self-collision over the whole trajectory
+before playback starts, and a jog step that would collide is dropped.
 - ~/stop (std_srvs/Trigger): hold the current position immediately
 
 Topics:
@@ -30,6 +33,11 @@ from robot_control.backend import SimBackend
 from robot_control.conversions import matrix_to_pose, pose_to_matrix
 from robot_control.state_machine import MotionStateMachine
 from robot_interfaces.srv import MoveJ, MoveL
+from robot_kinematics.collision import (
+    check_self_collision,
+    load_model,
+    self_collision_pairs,
+)
 from robot_kinematics.fk import fk
 from robot_kinematics.ik import solve_ik
 from robot_kinematics.jog import jog_step
@@ -64,6 +72,7 @@ class MotionServer(Node):
         self.declare_parameter("jog_max_linear", 0.25)
         self.declare_parameter("jog_max_angular", 1.0)
         self.declare_parameter("jog_deadman_timeout", 0.3)
+        self.declare_parameter("collision_margin", 0.0)
         rate = self.get_parameter("rate").value
         home = self.get_parameter("home").value
         self.v_max = self.get_parameter("v_max").value
@@ -71,6 +80,7 @@ class MotionServer(Node):
         self.linear_speed = self.get_parameter("linear_speed").value
         self.jog_max_lin = self.get_parameter("jog_max_linear").value
         self.jog_max_ang = self.get_parameter("jog_max_angular").value
+        self.collision_margin = self.get_parameter("collision_margin").value
         self.dt = 1.0 / rate
 
         # State machine, backend, trajectory buffer
@@ -85,6 +95,10 @@ class MotionServer(Node):
         self.pub_tool = self.create_publisher(PoseStamped, "tool_pose", 10)
         self._last_state = ""
         self._tick_count = 0
+        self._last_collision_warn = 0.0
+
+        # Fit the capsules now so the first goal is not the one that waits
+        load_model()
 
         # Services
         self.create_service(MoveJ, "~/move_j", self.on_move_j)
@@ -121,6 +135,13 @@ class MotionServer(Node):
         traj = quintic_joint_trajectory(
             q_now, ik.q, self.v_max, self.a_max, self.dt, duration
         )
+
+        # 3. Screen the whole trajectory before moving
+        ok, why = self._collision_free(traj.q)
+        if not ok:
+            res.success, res.message = False, why
+            return res
+
         self._start(traj.q)
         res.success, res.message = True, ""
         return res
@@ -148,6 +169,12 @@ class MotionServer(Node):
             res.message = f"IK failed at waypoint {path.failed_index}/{n}"
             return res
 
+        # 3. Screen the whole path before moving
+        ok, why = self._collision_free(path.q)
+        if not ok:
+            res.success, res.message = False, why
+            return res
+
         self._start(path.q)
         res.success, res.message = True, ""
         return res
@@ -157,6 +184,15 @@ class MotionServer(Node):
         self.sm.stop()
         res.success, res.message = True, "stopped"
         return res
+
+    def _collision_free(self, rows):
+        """(ok, message) for a trajectory; the first colliding sample decides."""
+        for i, q in enumerate(rows):
+            hits = self_collision_pairs(q, margin=self.collision_margin)
+            if hits:
+                a, b = hits[0]
+                return False, f"self-collision at sample {i} ({a}, {b})"
+        return True, ""
 
     def _start(self, rows):
         self._traj = rows
@@ -179,6 +215,13 @@ class MotionServer(Node):
     def _now(self):
         return self.get_clock().now().nanoseconds * 1e-9
 
+    def _warn_collision(self):
+        """Warn at most once a second while the operator holds the key."""
+        now = self._now()
+        if now - self._last_collision_warn > 1.0:
+            self._last_collision_warn = now
+            self.get_logger().warn("jog blocked: self-collision ahead")
+
     # =========================================================
     # Playback timer
     # =========================================================
@@ -192,7 +235,12 @@ class MotionServer(Node):
                 self._traj = None
                 self.sm.finish_move()
         elif self.sm.state == MotionStateMachine.JOG:
-            q = jog_step(self.backend.q, self._jog_twist, self.dt)
+            q_next = jog_step(self.backend.q, self._jog_twist, self.dt)
+            if check_self_collision(q_next, margin=self.collision_margin):
+                q = self.backend.q
+                self._warn_collision()
+            else:
+                q = q_next
         else:
             q = self.backend.q
         self.backend.write(q)

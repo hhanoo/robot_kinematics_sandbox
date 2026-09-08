@@ -54,6 +54,7 @@ class Chain:
 
     segments: tuple
     link_names: tuple
+    link_frames: tuple
 
     def __len__(self):
         return len(self.segments)
@@ -72,6 +73,13 @@ class Chain:
     def joint_names(self):
         """Movable joint names in chain order."""
         return tuple(s.name for s in self.segments)
+
+    def link_frame(self, name):
+        """(frame index, 4x4 pose in that frame) for a URDF link on the path."""
+        for link, placement in self.link_frames:
+            if link == name:
+                return placement
+        raise KeyError(f"'{name}' is not a link on the base-to-tip path")
 
 
 # =========================================================
@@ -196,16 +204,27 @@ def from_urdf(urdf_xml, base=None, tip=None):
         raise ValueError(f"no movable joint between '{base}' and '{tip}'")
 
     segments, link_names = [], [base]
+    link_frames = {base: (0, np.eye(4))}
     pending = leading
     for movable, fixed in groups:
         pre = np.eye(4)
         for j in pending:
             pre = pre @ _origin(j)
+            link_frames[j.find("child").attrib["link"]] = (len(segments), pre.copy())
         pre = pre @ _origin(movable)
 
         post = np.eye(4)
+        partial = [np.eye(4)]
         for j in fixed:
             post = post @ _origin(j)
+            partial.append(post.copy())
+
+        # Folded links are placed against the end frame
+        inv_post = np.linalg.inv(post)
+        end = len(segments) + 1
+        link_frames[movable.find("child").attrib["link"]] = (end, inv_post @ partial[0])
+        for j, part in zip(fixed, partial[1:]):
+            link_frames[j.find("child").attrib["link"]] = (end, inv_post @ part)
 
         lower, upper, velocity = _limits(movable)
         segments.append(
@@ -223,7 +242,11 @@ def from_urdf(urdf_xml, base=None, tip=None):
         link_names.append(last.find("child").attrib["link"])
         pending = []
 
-    return Chain(segments=tuple(segments), link_names=tuple(link_names))
+    return Chain(
+        segments=tuple(segments),
+        link_names=tuple(link_names),
+        link_frames=tuple(sorted(link_frames.items(), key=lambda kv: kv[0])),
+    )
 
 
 def from_urdf_file(path, base=None, tip=None):
@@ -232,17 +255,23 @@ def from_urdf_file(path, base=None, tip=None):
 
 
 @lru_cache(maxsize=None)
-def load_default():
-    """Chain for the bundled robot_description xacro, expanded once.
+def default_urdf():
+    """URDF text of the bundled robot_description xacro, expanded once.
 
     Expanding needs the xacro module (ros-humble-xacro). Callers outside a
-    ROS environment should build a Chain from a URDF string instead.
+    ROS environment should supply their own URDF text instead.
     """
     try:
         import xacro
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise RuntimeError(
-            "the default chain expands ur10e.urdf.xacro and needs the 'xacro' "
-            "module; pass a Chain built with from_urdf() instead"
+            "the default model expands ur10e.urdf.xacro and needs the 'xacro' "
+            "module; pass URDF text built elsewhere instead"
         ) from exc
-    return from_urdf(xacro.process_file(str(XACRO_PATH)).toxml())
+    return xacro.process_file(str(XACRO_PATH)).toxml()
+
+
+@lru_cache(maxsize=None)
+def load_default():
+    """Chain for the bundled robot_description xacro."""
+    return from_urdf(default_urdf())

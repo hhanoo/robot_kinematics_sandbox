@@ -89,7 +89,7 @@ CAD (DAE) + DH parameters
 ### 주요 구성요소
 
 - **robot_description** (xacro): 표준 DH 파라미터를 URDF로 변환한 UR10e 모델과 DAE 메쉬, RViz 설정
-- **robot_kinematics** (Python): URDF 체인 기반 FK / 기하학적 Jacobian / DLS 반복 IK / jog 스텝으로, ROS import 없는 순수 numpy 코어
+- **robot_kinematics** (Python): URDF 체인 기반 FK / 기하학적 Jacobian / DLS 반복 IK / jog 스텝 / 자기충돌 검사로, ROS import 없는 순수 numpy 코어
 - **robot_trajectory** (Python): 5차 다항식 관절 궤적과 직선과 원호 Cartesian 경로 생성으로, ROS import 없는 순수 numpy 코어
 - **robot_bringup** (Python): 데모 시퀀스 빌더와 JointState 스트리밍 노드, RViz 런치
 - **robot_interfaces** (srv): 런타임 제어 서비스 정의 (MoveJ / MoveL)로, 표준에 없는 pose 목표 서비스만 최소 정의
@@ -127,7 +127,9 @@ CAD (DAE) + DH parameters
 
 **키보드 Cartesian jog**: 별도 셸의 텔레옵이 발행하는 base 프레임 twist를 DLS 한 스텝 `Δq = Jᵀ(JJᵀ + λ²I)⁻¹(v·dt)`로 적분하며, 키를 떼면 deadman timeout(0.3 s)으로 정지하고 특이점 근처에서는 발산 없이 느려짐
 
-**테스트 기반 검증**: 순수 코어를 ROS 런타임 없이 pytest 65케이스로 검증 (기구학 23 / 궤적 20 / 시퀀스 8 / 제어 14)
+**캡슐 근사 자기충돌 검사**: URDF의 collision 메쉬에서 링크마다 캡슐 하나를 맞춰 선분 최단거리로 판정하며, move 궤적은 전 샘플을 미리 검사해 시작 전에 거부하고 jog는 충돌하는 스텝을 버리고 현재 자세를 유지
+
+**테스트 기반 검증**: 순수 코어를 ROS 런타임 없이 pytest 78케이스로 검증 (기구학 35 / 궤적 20 / 시퀀스 9 / 제어 14)
 
 ---
 
@@ -135,7 +137,7 @@ CAD (DAE) + DH parameters
 
 ```
    ┌─────────────────────────────────────────────────────────────┐
-   │ Pure numpy: robot_kinematics (chain/FK/Jacobian/IK/jog)     │
+   │ Pure numpy: robot_kinematics (chain/FK/Jacobian/IK/jog/col) │
    │             robot_trajectory (quintic/line/circle)          │
    └──────────────┬───────────────────────────────┬──────────────┘
                   │ import                        │ import
@@ -199,8 +201,9 @@ robot_kinematics_sandbox/
 │   │   │   ├── fk.py                   # FK (base_link → tool0 프레임)
 │   │   │   ├── jacobian.py             # 기하학적 Jacobian (6x6)
 │   │   │   ├── ik.py                   # DLS 반복 IK + rotation_vector
-│   │   │   └── jog.py                  # jog 한 스텝: twist → 관절 증분
-│   │   └── test/                       # FK / Jacobian / IK / jog pytest (23)
+│   │   │   ├── jog.py                  # jog 한 스텝: twist → 관절 증분
+│   │   │   └── collision.py            # 캡슐 자기충돌 검사 (메쉬에서 피팅)
+│   │   └── test/                       # FK / Jacobian / IK / jog / 충돌 pytest (35)
 │   │
 │   ├── robot_trajectory/               # 궤적 생성 코어 (ROS import 없음)
 │   │   ├── robot_trajectory/
@@ -213,7 +216,7 @@ robot_kinematics_sandbox/
 │   │   │   ├── demo_sequence.py        # 데모 시퀀스 빌더 (순수 numpy)
 │   │   │   └── demo_player.py          # /joint_states 50 Hz 스트리밍 노드
 │   │   ├── launch/demo.launch.py       # rsp + demo_player + RViz
-│   │   └── test/                       # 시퀀스 pytest (8)
+│   │   └── test/                       # 시퀀스 pytest (9)
 │   │
 │   ├── robot_interfaces/               # 런타임 제어 srv 정의
 │   │   └── srv/                        # MoveJ.srv, MoveL.srv (pose + duration)
@@ -278,8 +281,9 @@ robot_kinematics_sandbox/
   - **[jacobian.py](src/robot_kinematics/robot_kinematics/jacobian.py)** : `jacobian(q)`, URDF에 적힌 관절 축으로 관절 속도를 tool0 선속도와 각속도로 잇는 6×6 행렬 ([3_Jacobian](docs/robot_kinematics.md#3-jacobian-jacobianpy))
   - **[ik.py](src/robot_kinematics/robot_kinematics/ik.py)** : `rotation_vector(R)`, `solve_ik(target, q0)`, `IKResult`, 목표 pose를 DLS 반복으로 관절각으로 풀고 미수렴 시 `IKResult`로 보고 ([4_IK](docs/robot_kinematics.md#4-ik-ikpy))
   - **[jog.py](src/robot_kinematics/robot_kinematics/jog.py)** : `jog_step(q, twist, dt)`, twist를 dt 동안 적분한 관절 증분을 DLS 한 스텝으로 계산 ([4.3\_뉴턴법에서 DLS로 확장](docs/robot_kinematics.md#43-뉴턴법에서-dls로-확장))
+  - **[collision.py](src/robot_kinematics/robot_kinematics/collision.py)** : `load_model()`, `self_collision_pairs(q)`, `check_self_collision(q)`, URDF의 collision 메쉬에서 링크별 캡슐을 맞추고 선분 최단거리로 자기충돌을 판정 (사용처 motion_server)
 - **검증**
-  - **[test/](src/robot_kinematics/test/)** : test_fk, test_jacobian, test_ik, test_jog 23건, URDF 체인 대조, 수치미분 대조, IK 왕복과 실패 보고, jog 방향과 특이점 (`test-kinematics`)
+  - **[test/](src/robot_kinematics/test/)** : test_fk, test_jacobian, test_ik, test_jog, test_collision 35건, URDF 체인 대조, 수치미분 대조, IK 왕복과 실패 보고, jog 방향과 특이점, 캡슐의 메쉬 포함과 충돌 판정 (`test-kinematics`)
 
 ### robot_trajectory
 
@@ -306,7 +310,7 @@ robot_kinematics_sandbox/
   - **[demo_player.py](src/robot_bringup/robot_bringup/demo_player.py)** : 노드 `demo_player`, 시퀀스를 한 행씩 `/joint_states`로 발행하고 끝나면 `loop`에 따라 반복 (토픽 `/joint_states`, 파라미터 `rate`, `loop`)
   - **[demo.launch.py](src/robot_bringup/launch/demo.launch.py)** : robot_state_publisher, demo_player, RViz 동시 기동, `use_rviz:=false` 헤드리스 지원 (`run-demo`)
 - **검증**
-  - **[test/](src/robot_bringup/test/)** : test_demo_sequence 8건, 시작과 끝 자세, 관절 연속성, 세그먼트 범위, 직선과 원 기하 (`test-bringup`)
+  - **[test/](src/robot_bringup/test/)** : test_demo_sequence 9건, 시작과 끝 자세, 관절 연속성, 세그먼트 범위, 직선과 원 기하, 전 구간 무충돌 (`test-bringup`)
 
 ### robot_interfaces
 
@@ -326,10 +330,10 @@ robot_kinematics_sandbox/
   - **[conversions.py](src/robot_control/robot_control/conversions.py)** : `pose_to_matrix`, `matrix_to_pose`, Pose와 4×4 동차변환 상호 변환 (Shepperd)
 - **ROS**
   - **[backend.py](src/robot_control/robot_control/backend.py)** : `SimBackend`, 관절 상태 소유와 `/joint_states` 발행 대행, 시뮬과 실로봇의 교체 경계 (토픽 `/joint_states`)
-  - **[motion_server.py](src/robot_control/robot_control/motion_server.py)** : 노드 `motion_server`, 서비스 목표를 수락 시점에 궤적으로 생성해 재생, jog 적분, 상태 발행
+  - **[motion_server.py](src/robot_control/robot_control/motion_server.py)** : 노드 `motion_server`, 서비스 목표를 수락 시점에 궤적으로 생성해 자기충돌까지 검사한 뒤 재생, jog 적분과 충돌 스텝 폐기, 상태 발행
     - 서비스 : `move_j`, `move_l`, `stop`
     - 토픽 : `/jog_twist`, `/motion_state`, `/tool_pose`
-    - 호출 : `solve_ik`, `quintic_joint_trajectory`, `linear_pose_path`, `cartesian_to_joint`, `jog_step`, `fk`
+    - 호출 : `solve_ik`, `quintic_joint_trajectory`, `linear_pose_path`, `cartesian_to_joint`, `jog_step`, `fk`, `self_collision_pairs`, `check_self_collision`
   - **[marker_server.py](src/robot_control/robot_control/marker_server.py)** : 노드 `marker_server`, 마커 우클릭 메뉴를 서비스 호출로 전달하며 드래그만으로는 미동작 (서비스 클라이언트 `move_j`, `move_l`, 토픽 `/tool_pose`)
   - **[teleop_keyboard.py](src/robot_control/robot_control/teleop_keyboard.py)** : 노드 `teleop_keyboard`, 키 입력을 base 프레임 twist로 발행하고 정지는 서버 deadman에 위임 (`run-teleop`, 토픽 `/jog_twist`)
   - **[control.launch.py](src/robot_control/launch/control.launch.py)** : robot_state_publisher, motion_server, marker_server, RViz 동시 기동, `use_rviz:=false` 헤드리스 지원 (`run-control`)
@@ -536,9 +540,9 @@ joint_state_publisher_gui 슬라이더로 각 관절을 움직여 DH 기반 URDF
 ### 2. 단위 테스트
 
 ```bash
-test-kinematics   # 23 cases: FK vs URDF 체인, Jacobian vs 수치미분, IK 왕복, jog 스텝
+test-kinematics   # 35 cases: FK vs URDF 체인, Jacobian vs 수치미분, IK 왕복, jog 스텝, 자기충돌
 test-trajectory   # 20 cases: 5차 다항식 경계조건/한계, 경로 기하, 관절 연속성
-test-bringup      # 8 cases: 시작과 끝 자세, 관절 연속성, 세그먼트 범위, 직선과 원 기하
+test-bringup      # 9 cases: 시작과 끝 자세, 관절 연속성, 세그먼트 범위, 직선과 원 기하, 전 구간 무충돌
 test-control      # 14 cases: 상태머신 전이와 busy 거부, deadman timeout, Pose 변환 왕복
 ```
 
@@ -562,7 +566,7 @@ run-control
 ```
 
 motion_server, 목표 마커, RViz가 함께 뜨며, 목표는 아래 3가지 방법 중 하나로 지정함.  
-moving 중 새 목표는 `busy: moving`으로 거부되고, 도달 불가 목표는 `IK failed ...` 사유와 함께 시작 전에 거부되는 구조임.
+moving 중 새 목표는 `busy: moving`으로, 도달 불가 목표는 `IK failed ...`로, 자기충돌이 생기는 궤적은 `self-collision at sample ...`로 시작 전에 거부되는 구조임.
 
 #### 5.1 서비스 호출
 
@@ -600,7 +604,7 @@ run-teleop
 
 `run-control`과 별도 셸에서 실행하며, 키를 누르는 동안 base 프레임 twist가 `/jog_twist`로 발행되고 motion_server가 매 tick DLS 한 스텝으로 적분함.  
 키 릴리즈는 터미널에서 감지할 수 없어 마지막 twist로부터 0.3 s가 지나면 deadman timeout으로 idle에 복귀하는 구조이며, moving 중 키 입력은 무시됨.  
-특이점이나 작업공간 경계에 가까워지면 DLS 감쇠로 발산 없이 느려짐.
+특이점이나 작업공간 경계에 가까워지면 DLS 감쇠로 발산 없이 느려지고, 자기충돌로 들어가는 스텝은 버려 현재 자세를 유지하며 1초에 1번 경고를 남김.
 
 | 키        | 동작                      | 키        | 동작                 |
 | --------- | ------------------------- | --------- | -------------------- |
@@ -636,18 +640,18 @@ XAUTHORITY_PATH="$HOME/.Xauthority"            # RViz X11 인증 경로
 
 **ROS 2 인터페이스**
 
-| 이름                    | 타입                               | 설명                                                                                                |
-| ----------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `/joint_states`         | Topic (sensor_msgs/JointState)     | 관절각 50 Hz 발행 (demo_player 또는 motion_server)                                                  |
-| `/motion_server/move_j` | Service (robot_interfaces/MoveJ)   | 목표 pose로 관절 5차 다항식 이동, 수락/거부 즉시 응답                                               |
-| `/motion_server/move_l` | Service (robot_interfaces/MoveL)   | 목표 pose로 직선 이동, 실행 전 전 waypoint IK 검증                                                  |
-| `/motion_server/stop`   | Service (std_srvs/Trigger)         | 현 위치 즉시 정지                                                                                   |
-| `/motion_state`         | Topic (std_msgs/String)            | idle / moving / jog : 상태 변화 시 + 1 Hz                                                           |
-| `/tool_pose`            | Topic (geometry_msgs/PoseStamped)  | 현재 tool0 FK 결과 (base_link 기준)                                                                 |
-| `/jog_twist`            | Topic (geometry_msgs/TwistStamped) | base 프레임 jog 속도 명령으로, teleop_keyboard가 발행하고 motion_server가 idle에서만 수락           |
-| `demo_player.rate`      | Parameter (double)                 | 발행 주기 [Hz], 시퀀스 샘플링 주기와 공유                                                           |
-| `demo_player.loop`      | Parameter (bool)                   | 시퀀스 종료 시 반복 여부                                                                            |
-| `motion_server.*`       | Parameter                          | rate / home / v_max / a_max / linear_speed / jog_max_linear / jog_max_angular / jog_deadman_timeout |
+| 이름                    | 타입                               | 설명                                                                                                                   |
+| ----------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `/joint_states`         | Topic (sensor_msgs/JointState)     | 관절각 50 Hz 발행 (demo_player 또는 motion_server)                                                                     |
+| `/motion_server/move_j` | Service (robot_interfaces/MoveJ)   | 목표 pose로 관절 5차 다항식 이동, 수락/거부 즉시 응답                                                                  |
+| `/motion_server/move_l` | Service (robot_interfaces/MoveL)   | 목표 pose로 직선 이동, 실행 전 전 waypoint IK 검증                                                                     |
+| `/motion_server/stop`   | Service (std_srvs/Trigger)         | 현 위치 즉시 정지                                                                                                      |
+| `/motion_state`         | Topic (std_msgs/String)            | idle / moving / jog : 상태 변화 시 + 1 Hz                                                                              |
+| `/tool_pose`            | Topic (geometry_msgs/PoseStamped)  | 현재 tool0 FK 결과 (base_link 기준)                                                                                    |
+| `/jog_twist`            | Topic (geometry_msgs/TwistStamped) | base 프레임 jog 속도 명령으로, teleop_keyboard가 발행하고 motion_server가 idle에서만 수락                              |
+| `demo_player.rate`      | Parameter (double)                 | 발행 주기 [Hz], 시퀀스 샘플링 주기와 공유                                                                              |
+| `demo_player.loop`      | Parameter (bool)                   | 시퀀스 종료 시 반복 여부                                                                                               |
+| `motion_server.*`       | Parameter                          | rate / home / v_max / a_max / linear_speed / jog_max_linear / jog_max_angular / jog_deadman_timeout / collision_margin |
 
 **라이브러리 API (순수 Python)** : 함수별 파일과 이론 문서 링크는 구현 상세의 패키지별 목록에서 코어 항목에 정리함 ([구현 상세](#구현-상세)).
 
@@ -718,7 +722,7 @@ ModuleNotFoundError: No module named 'robot_kinematics'
 - [x] 서비스 기반 런타임 제어 (move_j / move_l / stop) ([5.1\_서비스 호출](#51-서비스-호출))
 - [x] 인터랙티브 마커 목표 지정 ([5.2\_인터랙티브 마커](#52-인터랙티브-마커))
 - [x] 키보드 텔레옵 (Cartesian jog) ([5.3\_키보드 jog](#53-키보드-jog))
-- [ ] 캡슐 근사 자기충돌 검사
+- [x] 캡슐 근사 자기충돌 검사 ([5\_런타임 제어](#5-런타임-제어))
 - [ ] Gazebo 연동 (ros2_control)
 - [ ] MuJoCo 연동
 - [ ] Isaac Sim 연동

@@ -7,6 +7,7 @@ Whole-sequence continuity plus per-segment geometry checked through FK.
 import numpy as np
 
 from robot_bringup.demo_sequence import build_demo_sequence
+from robot_kinematics.collision import self_collision_pairs
 from robot_kinematics.fk import fk
 
 DT = 0.02
@@ -75,3 +76,11 @@ class TestSegmentGeometry:
         for q in seq.q[seg.start : seg.end : 10]:
             R = fk(q)[:3, :3]
             np.testing.assert_allclose(R, R0, atol=1e-3)
+
+
+class TestSelfCollision:
+    def test_whole_sequence_is_collision_free(self):
+        """The demo must survive the collision guard motion_server applies."""
+        seq = build_demo_sequence(dt=DT)
+        for i, q in enumerate(seq.q):
+            assert self_collision_pairs(q) == [], f"sample {i} collides"
