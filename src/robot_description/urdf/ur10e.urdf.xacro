@@ -107,8 +107,30 @@
 
   </xacro:macro>
 
+  <!-- ===============================
+       Macro: Link geometry
+       - visual과 collision은 같은 origin을 공유
+       - visual은 DAE, collision은 감면한 STL
+       =============================== -->
+  <xacro:macro name="link_geometry" params="mesh xyz rpy">
+    <visual>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <mesh filename="package://robot_description/meshes/visual/${mesh}.dae"
+              scale="1 1 1"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <mesh filename="package://robot_description/meshes/collision/${mesh}.stl"
+              scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </xacro:macro>
+
   <!-- =========================================================
-       Links and visual meshes
+       Links and meshes
 
        중요 원칙:
        - joint / DH 파라미터는 "기구학"
@@ -118,79 +140,37 @@
 
   <!-- Base link -->
   <link name="base_link">
-    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <mesh filename="package://robot_description/meshes/base_link.dae"
-              scale="1 1 1"/>
-      </geometry>
-    </visual>
+    <xacro:link_geometry mesh="base" xyz="0 0 0" rpy="0 0 0"/>
   </link>
 
   <!-- Link 1: Shoulder -->
   <link name="link1">
-    <visual>
-      <origin xyz="0 0 0" rpy="-1.5708 -3.14159 0"/>
-      <geometry>
-        <mesh filename="package://robot_description/meshes/link1.dae"
-              scale="1 1 1"/>
-      </geometry>
-    </visual>
+    <xacro:link_geometry mesh="shoulder" xyz="0 0 0" rpy="-1.5708 -3.14159 0"/>
   </link>
 
   <!-- Link 2: Upper Arm -->
   <link name="link2">
-    <visual>
-      <origin xyz="0.6127 0 0.1762" rpy="1.5708 0 -1.5708"/>
-      <geometry>
-        <mesh filename="package://robot_description/meshes/link2.dae"
-              scale="1 1 1"/>
-      </geometry>
-    </visual>
+    <xacro:link_geometry mesh="upperarm" xyz="0.6127 0 0.1762" rpy="1.5708 0 -1.5708"/>
   </link>
 
   <!-- Link 3: Forearm -->
   <link name="link3">
-    <visual>
-      <origin xyz="0.57155 0 0.0393" rpy="1.5708 0 -1.5708"/>
-      <geometry>
-        <mesh filename="package://robot_description/meshes/link3.dae"
-              scale="1 1 1"/>
-      </geometry>
-    </visual>
+    <xacro:link_geometry mesh="forearm" xyz="0.57155 0 0.0393" rpy="1.5708 0 -1.5708"/>
   </link>
 
   <!-- Link 4: Wrist 1 -->
   <link name="link4">
-    <visual>
-      <origin xyz="0 -0.135 0" rpy="0 0 0"/>
-      <geometry>
-        <mesh filename="package://robot_description/meshes/link4.dae"
-              scale="1 1 1"/>
-      </geometry>
-    </visual>
+    <xacro:link_geometry mesh="wrist1" xyz="0 -0.135 0" rpy="0 0 0"/>
   </link>
 
   <!-- Link 5: Wrist 2 -->
   <link name="link5">
-    <visual>
-      <origin xyz="0 0.12 0" rpy="1.5708 0 0"/>
-      <geometry>
-        <mesh filename="package://robot_description/meshes/link5.dae"
-              scale="1 1 1"/>
-      </geometry>
-    </visual>
+    <xacro:link_geometry mesh="wrist2" xyz="0 0.12 0" rpy="1.5708 0 0"/>
   </link>
 
   <!-- Link 6: Wrist 3 / Tool Flange -->
   <link name="link6">
-    <visual>
-      <origin xyz="0 0 -0.1168" rpy="1.5708 0 0"/>
-      <geometry>
-        <mesh filename="package://robot_description/meshes/link6.dae"
-              scale="1 1 1"/>
-      </geometry>
-    </visual>
+    <xacro:link_geometry mesh="wrist3" xyz="0 0 -0.1168" rpy="1.5708 0 0"/>
   </link>
 
   <!-- =========================================================
