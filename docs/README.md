@@ -46,6 +46,7 @@ URDF 모델링만 필요하다면 이 문서만 따로 읽어도 됨.
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `robot_description/urdf/ur10e.urdf.xacro` | [_robot description.md_ 2\_조인트 분해](robot_description.md#2-해법-조인트-하나를-둘로-분해)                   |
 | `robot_kinematics/dh.py`                  | [_robot kinematics.md_ 1_DH 파라미터](robot_kinematics.md#1-dh-파라미터-dhpy)                                  |
+| `robot_kinematics/chain.py`               | [_robot kinematics.md_ 2.2\_누적곱](robot_kinematics.md#22-누적곱)                                             |
 | `robot_kinematics/fk.py`                  | [_robot kinematics.md_ 2_FK](robot_kinematics.md#2-fk-fkpy)                                                    |
 | `robot_kinematics/jacobian.py`            | [_robot kinematics.md_ 3_Jacobian](robot_kinematics.md#3-jacobian-jacobianpy)                                  |
 | `robot_kinematics/ik.py`                  | [_robot kinematics.md_ 4_IK](robot_kinematics.md#4-ik-ikpy)                                                    |

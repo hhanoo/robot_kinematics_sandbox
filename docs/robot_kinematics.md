@@ -7,13 +7,13 @@
   - [1.1 링크 표현에 필요한 파라미터 수](#11-링크-표현에-필요한-파라미터-수)
   - [1.2 링크 변환 행렬 유도](#12-링크-변환-행렬-유도)
   - [1.3 코드: dh_transform](#13-코드-dh_transform)
-  - [1.4 UR10e 테이블 읽기](#14-ur10e-테이블-읽기)
+  - [1.4 UR10e 값 읽기](#14-ur10e-값-읽기)
   - [1.5 DH 규약의 주의점](#15-dh-규약의-주의점)
   - [1.6 검증: 기본 변환](#16-검증-기본-변환)
 - [2. FK (`fk.py`)](#2-fk-fkpy)
   - [2.1 관절각에서 pose로](#21-관절각에서-pose로)
   - [2.2 누적곱](#22-누적곱)
-  - [2.3 코드: fk_frames](#23-코드-fk_frames)
+  - [2.3 코드: fk_joints](#23-코드-fk_joints)
   - [2.4 중간 프레임을 전부 반환하는 이유](#24-중간-프레임을-전부-반환하는-이유)
   - [2.5 영점 자세 위치 유도](#25-영점-자세-위치-유도)
   - [2.6 검증: 서로 독립인 두 기준](#26-검증-서로-독립인-두-기준)
@@ -41,17 +41,19 @@
 아래 4개의 모듈은 순서대로 앞 단계를 쌓아 올리는 구조임.
 
 ```
-dh.py         DH 한 행 (a, d, α) + 관절각 θ  →  4x4 링크 변환
+chain.py      URDF (base_link ~ tool0)  →  움직이는 조인트별 Segment
    │
    ▼
-fk.py         링크 변환 누적곱  →  base_link ~ tool0 pose
+fk.py         Segment 순회  →  링크 프레임과 관절 축, tool0 pose
    │
    ▼
-jacobian.py   FK 중간 프레임 재사용  →  q̇ → twist (6xN)
+jacobian.py   FK가 낸 관절 축과 원점  →  q̇ → twist (6xN)
    │
    ▼
 ik.py         Jacobian 반복 선형화  →  목표 pose → 관절각
 ```
+
+`dh.py`는 이 흐름 밖에 있으며, xacro가 DH 한 행을 URDF 조인트로 전개할 때 쓰는 계산을 파이썬으로 옮겨 둔 대조용 구현임 ([1_DH 파라미터](#1-dh-파라미터-dhpy)).
 
 문서 전체에서 쓰는 공통 기호는 다음과 같음.
 
@@ -154,32 +156,37 @@ def dh_transform(theta, d, a, alpha):
     )
 ```
 
-4번의 행렬 곱 대신 **전개 결과를 상수 시간에 채워 넣는 구조**로, FK가 관절 수만큼 호출하고 IK가 FK를 매 반복 호출하므로 이 한 함수가 전체 성능을 좌우함.
+4번의 행렬 곱 대신 **전개 결과를 상수 시간에 채워 넣는 구조**이며, 런타임 FK는 URDF 체인을 쓰므로 이 함수는 xacro 매크로가 같은 행렬을 만드는지 확인하는 테스트에서만 호출됨.
 
 black 재포맷을 막지 않으면 행렬 모양이 무너져 검토가 어려워지기 때문에, 행렬 리터럴은 `# fmt: off` / `# fmt: on`으로 감싸 열 정렬을 유지함.
 
-### 1.4 UR10e 테이블 읽기
+### 1.4 UR10e 값 읽기
 
-```python
-# Standard DH rows: (a, d, alpha). theta comes from the joint angle.
-UR10E_DH = np.array(
-    [
-        [0.0,      0.1807,   math.pi / 2],   # joint 1
-        [-0.6127,  0.0,      0.0        ],   # joint 2
-        [-0.57155, 0.0,      0.0        ],   # joint 3
-        [0.0,      0.17415,  math.pi / 2],   # joint 4
-        [0.0,      0.11985, -math.pi / 2],   # joint 5
-        [0.0,      0.11655,  0.0        ],   # joint 6
-    ]
-)
+값은 `ur10e.urdf.xacro`의 프로퍼티 1곳에 있으며, joint 1의 3개를 옮기면 아래와 같음.
+
+```xml
+<xacro:property name="a1"     value="0.0"/>
+<xacro:property name="d1"     value="0.1807"/>
+<xacro:property name="alpha1" value="${pi/2}"/>
 ```
+
+6개 관절을 모으면 아래 표가 됨.
+
+| joint | $a$ [m]  | $d$ [m] | $\alpha$ |
+| ----- | -------- | ------- | -------- |
+| 1     | 0.0      | 0.1807  | $+90°$   |
+| 2     | -0.6127  | 0.0     | $0$      |
+| 3     | -0.57155 | 0.0     | $0$      |
+| 4     | 0.0      | 0.17415 | $+90°$   |
+| 5     | 0.0      | 0.11985 | $-90°$   |
+| 6     | 0.0      | 0.11655 | $0$      |
 
 숫자에서 로봇 형상이 읽힘.
 
 - **joint 2, 3의 $a$가 크고 음수** : upper arm 0.6127 m, forearm 0.5716 m로 UR10e 팔 길이 그 자체이며, $\alpha = 0$ 이라 두 축이 평행해 어깨와 팔꿈치가 한 평면에서 움직임
 - **joint 1, 4, 5의 $\alpha = \pm 90°$** : 축이 직각으로 꺾이는 지점이며, joint 4, 5, 6이 한 점 근처에 모여 wrist를 구성함
 - **$a$의 음수 부호** : common normal 방향을 어느 쪽으로 잡았느냐의 문제일 뿐 물리적 길이는 절댓값이며, UR 공식 표기를 그대로 따른 것임
-- **$\theta$ 열 없음** : revolute joint의 $\theta$는 상수가 아닌 변수라 테이블이 아니라 `q` 인자로 들어옴
+- **$\theta$ 값 없음** : revolute joint의 $\theta$는 상수가 아닌 변수라 xacro가 아니라 `q` 인자로 들어옴
 
 ### 1.5 DH 규약의 주의점
 
@@ -191,18 +198,10 @@ UR10E_DH = np.array(
 | modified (Craig)   | $R_x(\alpha_{i-1}) T_x(a_{i-1}) R_z(\theta_i) T_z(d_i)$ | 관절 $i$ 축 위     |
 
 - **규약과 파라미터 값** : 같은 로봇이라도 규약에 따라 파라미터 값이 다르며, 이 프로젝트는 standard를 쓰므로 외부 DH 표를 가져올 때 규약 확인을 빠뜨리면 별도의 오류 없이 틀린 FK가 나옴
-- **인자 순서** : 테이블 한 행은 `(a, d, alpha)` 순인데 `dh_transform()` 시그니처는 `(theta, d, a, alpha)`라서 `a`와 `d` 자리가 뒤바뀌며, `fk.py`가 이 교환을 처리함
+- **인자 순서** : DH 한 행을 $(a, d, \alpha)$ 순으로 적는 관례와 달리 `dh_transform()` 시그니처는 `(theta, d, a, alpha)`라 `a`와 `d` 자리가 뒤바뀌고, 바꿔 넣어도 예외 없이 형태상 이상이 없는 값이 나오므로 이 실수는 대조 테스트에서만 드러남
 
-```python
-for i, (theta, (a, d, alpha)) in enumerate(zip(q, dh)):
-    frames[i + 1] = frames[i] @ dh_transform(theta, d, a, alpha)
-#                                                   ^^^^  테이블 순서와 반대
-```
-
-바꿔 넣어도 예외 없이 형태상 이상이 없는 값이 나오기 때문에, 이 실수는 FK-URDF 대조 테스트에서만 드러남.
-
-**xacro와의 동기화** : `dh.py` 값과 `ur10e.urdf.xacro`의 `xacro:property` 값은 **항상 일치해야 하며**, 한쪽만 고치면 계산 결과와 RViz 화면이 어긋남.  
-두 값이 어긋나면 테스트가 실패하므로, 일치 여부는 문서가 아니라 테스트로 확인함 ([2.6\_검증: 서로 독립인 두 기준](#26-검증-서로-독립인-두-기준)).
+**값이 있는 곳** : DH 값은 `ur10e.urdf.xacro`의 `xacro:property` 1곳에만 있고, 기구학 코드는 그 xacro를 전개한 URDF에서 조인트 원점과 축을 읽으므로 같은 값을 2곳에서 관리하지 않음.  
+전개한 URDF와 DH 곱이 같은 결과를 내는지는 대조 테스트로 확인함 ([2.6\_검증: 서로 독립인 두 기준](#26-검증-서로-독립인-두-기준)).
 
 ### 1.6 검증: 기본 변환
 
@@ -232,42 +231,57 @@ $$
 
 - ${}^{0}T_k$ : base(프레임 0)에서 본 프레임 $k$의 pose로, `fk_frames()`가 반환하는 `frames[k]`
 
-곱의 각 항은 `dh_transform`이 만드는 링크 변환 행렬이며 ([1.2\_링크 변환 행렬 유도](#12-링크-변환-행렬-유도)), 유도는 단순하지만 짚어야 할 사항은 아래와 같음.
+곱의 각 항은 체인의 Segment 하나가 만드는 변환임.
+
+$$
+{}^{k-1}T_k(\theta_k) = P_k\, R(\hat{u}_k, \theta_k)\, Q_k
+$$
+
+- $P_k$ : 이전 링크 프레임에서 조인트 프레임까지의 고정 변환 (`Segment.pre`)
+- $\hat{u}_k$ : 조인트 프레임에서 본 회전축 (`Segment.axis`)
+- $Q_k$ : 회전 이후 자식 링크 프레임까지의 고정 변환 (`Segment.post`)
+
+DH로 지은 URDF에서는 $P_k = T_z(d_k)$, $\hat{u}_k = \hat{z}$, $Q_k = T_x(a_k) R_x(\alpha_k)$가 되어 링크 변환 행렬과 같아짐 ([1.2\_링크 변환 행렬 유도](#12-링크-변환-행렬-유도)).
+
+유도는 단순하지만 짚어야 할 사항은 아래와 같음.
 
 - **곱의 방향** : 왼쪽에서 오른쪽으로 곱하는 것은 각 변환을 **직전 프레임의 로컬 좌표계 기준**으로 적용한다는 뜻이며, 그 결과 부분곱 ${}^{0}T_k$가 항상 "base에서 본 프레임 $k$"라는 의미를 유지함
 - **수치 오차** : 6번의 행렬 곱이 부동소수 오차를 누적시키지만 각 행렬이 직교(회전)라 증폭되지 않으며, 실제로 무작위 자세 10개의 모든 중간 프레임에서 $RR^\top = I$, $\det R = 1$이 $10^{-9}$ 이내로 유지됨 (`test_rotation_matrices_are_orthonormal`)
 
-### 2.3 코드: fk_frames
+### 2.3 코드: fk_joints
 
 ```python
-def fk_frames(q, dh=None):
-    if dh is None:
-        dh = UR10E_DH
-    q = np.asarray(q, dtype=float)
-    frames = np.empty((len(q) + 1, 4, 4))
-    frames[0] = np.eye(4)
-    for i, (theta, (a, d, alpha)) in enumerate(zip(q, dh)):
-        frames[i + 1] = frames[i] @ dh_transform(theta, d, a, alpha)
-    return frames
+    T = np.eye(4)
+    frames[0] = T
+    for i, seg in enumerate(chain.segments):
+        # 1. Move to the joint frame, where the axis is defined
+        T_joint = T @ seg.pre
+        axes[i] = T_joint[:3, :3] @ seg.axis
+        origins[i] = T_joint[:3, 3]
 
-
-def fk(q, dh=None):
-    return fk_frames(q, dh)[-1]
+        # 2. Rotate, then step to the child link frame
+        rot = np.eye(4)
+        rot[:3, :3] = axis_rotation(seg.axis, q[i])
+        T = T_joint @ rot @ seg.post
+        frames[i + 1] = T
 ```
 
-`frames[0] = np.eye(4)`가 base 프레임에 해당하며, 단위행렬을 실제로 저장하기 때문에 `frames[i]`가 곧 "프레임 $i$"라는 인덱스 규약이 성립하고 Jacobian이 이 규약을 그대로 사용함.
+`frames[0] = np.eye(4)`가 base 프레임에 해당하며, 단위행렬을 실제로 저장하기 때문에 `frames[i]`가 곧 "프레임 $i$"라는 인덱스 규약이 성립함.
 
-`fk()`는 마지막 프레임만 꺼내는 단순 wrapper임.
+Jacobian이 관절 축과 그 축 위의 점을 필요로 하므로 ([3.2\_열 공식 유도](#32-열-공식-유도)), 한 번의 순회로 링크 프레임과 함께 `axes[i]`와 `origins[i]`도 base 기준으로 채움.  
+축을 링크 프레임의 z축으로 유추하지 않고 URDF에 적힌 값을 변환해 쓰므로, 조인트 원점에 회전이 있는 로봇에서도 성립함.
+
+`fk_frames()`는 프레임만, `fk()`는 마지막 프레임만 꺼내는 단순 wrapper임.
 
 ### 2.4 중간 프레임을 전부 반환하는 이유
 
-메인 함수가 `fk()`가 아니라 `fk_frames()`인 이유는 Jacobian에 있음.
+메인 함수가 `fk()`가 아니라 `fk_joints()`인 이유는 Jacobian에 있음.
 
-Jacobian의 열 $i$는 **관절 $i$의 축과 원점**을 필요로 하고 ([3.2\_열 공식 유도](#32-열-공식-유도)), 그 정보는 중간 프레임 ${}^{0}T_i$에 들어 있으므로, `fk()`만 제공하면 Jacobian이 관절마다 FK를 다시 돌려야 해서 비용이 $O(n)$에서 $O(n^2)$로 증가함.
+Jacobian의 열 $i$는 **관절 $i$의 축과 원점**을 필요로 하고 ([3.2\_열 공식 유도](#32-열-공식-유도)), 그 값은 체인을 순회하는 도중에만 알 수 있으므로, `fk()`만 제공하면 Jacobian이 관절마다 FK를 다시 돌려야 해서 비용이 $O(n)$에서 $O(n^2)$로 증가함.
 
 IK는 반복마다 FK 1회 + Jacobian 1회를 호출하므로 이 차이가 IK 성능을 그대로 좌우함.
 
-반환 형태는 `(n+1, 4, 4)` numpy 배열이며, 리스트가 아니라 배열이라 `frames[-1]`, `frames[i][:3, 2]` 같은 슬라이싱을 그대로 쓸 수 있음.
+반환 형태는 프레임이 `(n+1, 4, 4)`, 축과 원점이 각각 `(n, 3)` numpy 배열이며, 리스트가 아니라 배열이라 `frames[-1]`, `axes[i]` 같은 슬라이싱을 그대로 쓸 수 있음.
 
 ### 2.5 영점 자세 위치 유도
 
@@ -311,9 +325,9 @@ $$
 FK는 **서로 독립인 두 기준**으로 검증하므로, 하나가 틀려도 다른 하나가 오류를 탐지함.
 
 - **기준 1\_직접 유도한 폐형식** (`TestZeroPose`) : 영점 자세 유도에서 구한 값 ([2.5\_영점 자세 위치 유도](#25-영점-자세-위치-유도))을 하드코딩해 $10^{-9}$ 이내로 대조하며, 요점은 검증 대상 코드를 거치지 않고 얻은 값이라는 점임
-- **기준 2_xacro가 전개한 URDF 체인** (`TestAgainstURDF`) : `xacro.process_file()`로 URDF를 전개한 뒤 `tool0`에서 부모를 거슬러 올라가며 joint origin과 axis 회전을 직접 합성하며, 무작위 관절각 100개에서 DH 계산과 $10^{-6}$ 이내로 일치해야 함
+- **기준 2_xacro가 전개한 URDF 체인** (`TestAgainstURDF`) : `xacro.process_file()`로 URDF를 전개한 뒤 `tool0`에서 부모를 거슬러 올라가며 joint origin과 axis 회전을 직접 합성하며, 무작위 관절각 100개에서 체인 계산과 $10^{-6}$ 이내로 일치해야 함
 
-이 테스트가 **RViz가 그리는 로봇과 IK가 푸는 로봇이 같은 로봇임을 보장**하며, `dh.py`와 xacro 값이 어긋나면 즉시 실패하므로, 2곳의 상수가 일치하는지는 문서가 아니라 테스트로 확인함.
+이 테스트가 **RViz가 그리는 로봇과 IK가 푸는 로봇이 같은 로봇임을 보장**하며, 값이 xacro 1곳에 모인 지금은 상수의 일치가 아니라 고정 조인트를 접어 넣은 체인과 URDF를 직접 거슬러 올라간 결과가 같은지를 확인함.
 
 > `xacro` 파이썬 모듈이 없으면 `pytest.importorskip`으로 건너뛰므로, 이 대조가 실제로 돌게 하려면 프로젝트 컨테이너 안에서 실행해야 함.
 
@@ -374,28 +388,28 @@ $$
 ### 3.3 코드: jacobian
 
 ```python
-def jacobian(q, dh=None):
-    frames = fk_frames(q, dh)
+def jacobian(q, chain=None):
+    frames, axes, origins = fk_joints(q, chain)
     p_e = frames[-1][:3, 3]
-    n = len(frames) - 1
+    n = len(axes)
     J = np.zeros((6, n))
     for i in range(n):
-        z_i = frames[i][:3, 2]
-        p_i = frames[i][:3, 3]
-        J[:3, i] = np.cross(z_i, p_e - p_i)
-        J[3:, i] = z_i
+        J[:3, i] = np.cross(axes[i], p_e - origins[i])
+        J[3:, i] = axes[i]
     return J
 ```
 
 유도한 식이 거의 그대로 옮겨진 형태임.
 
-| 코드                       | 수식                                    |
-| -------------------------- | --------------------------------------- |
-| `frames[i][:3, 2]`         | $z_i$ : 회전행렬의 3번째 열이 z축 방향  |
-| `frames[i][:3, 3]`         | $p_i$ : 동차변환의 4번째 열이 원점 위치 |
-| `np.cross(z_i, p_e - p_i)` | $z_i \times (p_e - p_i)$                |
+| 코드                                  | 수식                      |
+| ------------------------------------- | ------------------------- |
+| `axes[i]`                             | $z_i$ : base 기준 관절 축 |
+| `origins[i]`                          | $p_i$ : 그 축 위의 한 점  |
+| `np.cross(axes[i], p_e - origins[i])` | $z_i \times (p_e - p_i)$  |
 
-`fk_frames()`를 **한 번만** 호출해 모든 프레임을 재사용하므로 FK 1회 + $O(n)$ 외적으로 종료함 ([2.4\_중간 프레임을 전부 반환하는 이유](#24-중간-프레임을-전부-반환하는-이유)).
+URDF의 조인트 원점에 회전이 있으면 링크 프레임의 z축이 관절 축과 달라지므로, 축과 원점을 프레임에서 꺼내지 않고 `fk_joints()`가 채워 준 값을 그대로 씀.
+
+`fk_joints()`를 **한 번만** 호출해 순회 결과를 재사용하므로 FK 1회 + $O(n)$ 외적으로 종료함 ([2.4\_중간 프레임을 전부 반환하는 이유](#24-중간-프레임을-전부-반환하는-이유)).
 
 ### 3.4 인덱스와 행 순서 규약
 
@@ -657,7 +671,7 @@ $$
 ```python
 for it in range(max_iters):
     # 1. Current 6D error to target (position + rotation vector)
-    e = _pose_error(target, fk(q, dh))
+    e = _pose_error(target, fk(q, chain))
     pos_err = float(np.linalg.norm(e[:3]))
     rot_err = float(np.linalg.norm(e[3:]))
 
@@ -666,7 +680,7 @@ for it in range(max_iters):
         return IKResult(True, q, pos_err, rot_err, it)
 
     # 3. DLS step (lambda^2 keeps it bounded at singularities)
-    J = jacobian(q, dh)
+    J = jacobian(q, chain)
     dq = J.T @ np.linalg.solve(J @ J.T + lam2 * np.eye(6), e)
 
     # 4. Clamp step size (Jacobian is only a local approximation)

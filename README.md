@@ -89,7 +89,7 @@ CAD (DAE) + DH parameters
 ### 주요 구성요소
 
 - **robot_description** (xacro): 표준 DH 파라미터를 URDF로 변환한 UR10e 모델과 DAE 메쉬, RViz 설정
-- **robot_kinematics** (Python): DH 기반 FK / 기하학적 Jacobian / DLS 반복 IK / jog 스텝으로, ROS import 없는 순수 numpy 코어
+- **robot_kinematics** (Python): URDF 체인 기반 FK / 기하학적 Jacobian / DLS 반복 IK / jog 스텝으로, ROS import 없는 순수 numpy 코어
 - **robot_trajectory** (Python): 5차 다항식 관절 궤적과 직선과 원호 Cartesian 경로 생성으로, ROS import 없는 순수 numpy 코어
 - **robot_bringup** (Python): 데모 시퀀스 빌더와 JointState 스트리밍 노드, RViz 런치
 - **robot_interfaces** (srv): 런타임 제어 서비스 정의 (MoveJ / MoveL)로, 표준에 없는 pose 목표 서비스만 최소 정의
@@ -109,7 +109,7 @@ CAD (DAE) + DH parameters
 
 **DH → URDF 모델링**: 표준 DH 한 행을 revolute + fixed 조인트 쌍으로 전개하는 xacro 매크로로 기구학과 메쉬 정렬을 분리
 
-**DH 기반 FK**: 관절각 → base_link~tool0 동차변환. xacro 전개 URDF 체인과 무작위 관절각 100개 대조로 1e-6 이내 일치 검증
+**URDF 기반 FK**: URDF에서 읽은 체인으로 관절각 → base_link~tool0 동차변환을 계산하고 조인트 축도 URDF에 적힌 값을 그대로 쓰므로, 6축 로봇은 URDF 교체만으로 적용됨
 
 **기하학적 Jacobian**: 각 관절 축의 `[z × (pₑ−pᵢ); z]` 열로 구성한 6×6 행렬이며 수치미분(중앙차분)과 대조 검증
 
@@ -135,8 +135,8 @@ CAD (DAE) + DH parameters
 
 ```
    ┌─────────────────────────────────────────────────────────────┐
-   │ Pure numpy cores: robot_kinematics (FK/Jacobian/DLS IK/jog) │
-   │                   robot_trajectory (quintic/line/circle)    │
+   │ Pure numpy: robot_kinematics (chain/FK/Jacobian/IK/jog)     │
+   │             robot_trajectory (quintic/line/circle)          │
    └──────────────┬───────────────────────────────┬──────────────┘
                   │ import                        │ import
    ┌──────────────┴─────────────┐   ┌─────────────┴──────────────┐
@@ -175,7 +175,7 @@ CAD (DAE) + DH parameters
                                                        └──▶ /motion_state, /tool_pose (status)
 ```
 
-[FK 검증] DH 테이블 → fk() ↔ xacro 전개 URDF 체인 (pytest 대조)  
+[FK 검증] xacro 전개 URDF → chain → fk() ↔ URDF 체인 직접 순회 (pytest 대조)  
 [IK 검증] 무작위 q → fk() → solve_ik() → fk() 왕복 오차 (pytest 대조)
 
 ---
@@ -187,13 +187,15 @@ robot_kinematics_sandbox/
 ├── src/
 │   ├── robot_description/              # UR10e 모델 (xacro / 메쉬 / RViz)
 │   │   ├── urdf/ur10e.urdf.xacro       # 표준 DH → URDF 변환 매크로
-│   │   ├── meshes/                     # base_link.dae, link1~6.dae
+│   │   ├── meshes/visual/              # base.dae, shoulder~wrist3.dae
+│   │   ├── meshes/collision/           # 감면 STL 7개 (visual과 같은 origin)
 │   │   ├── rviz/view_robot.rviz        # RViz 레이아웃
 │   │   └── launch/view_robot.launch.py # 모델 뷰어 (joint_state_publisher_gui)
 │   │
 │   ├── robot_kinematics/               # 기구학 코어 (ROS import 없음)
 │   │   ├── robot_kinematics/
-│   │   │   ├── dh.py                   # UR10e 표준 DH 테이블 + 링크 변환
+│   │   │   ├── chain.py                # URDF → 체인 (조인트 축 / 링크 / 한계)
+│   │   │   ├── dh.py                   # 표준 DH 한 행의 링크 변환 (xacro 대조용)
 │   │   │   ├── fk.py                   # FK (base_link → tool0 프레임)
 │   │   │   ├── jacobian.py             # 기하학적 Jacobian (6x6)
 │   │   │   ├── ik.py                   # DLS 반복 IK + rotation_vector
@@ -250,85 +252,89 @@ robot_kinematics_sandbox/
 
 ## 구현 상세
 
-패키지마다 소개와 파일 표를 두며, 표의 계층 열은 아래 3가지로 구분함.
-
-- **코어** : ROS 런타임 없이 pytest로 검증되는 모델과 순수 Python 함수로, 참조 열이 유도와 수식이 있는 [docs/](docs/) 절로 이어짐
-- **ROS** : 코어를 호출해 토픽과 서비스로 잇는 노드, launch, srv 정의로, 참조 열이 실행 명령과 인터페이스임
-- **검증** : 패키지의 pytest 디렉터리와 실행 명령
+패키지마다 소개와 파일 목록을 두며, 파일은 코어(ROS 런타임 없이 pytest로 검증되는 모델과 순수 Python 함수), ROS(노드, launch, srv 정의), 검증(pytest)으로 나눔.  
+유도와 수식은 [docs/](docs/)에 있으며, 코어 항목 끝의 괄호가 해당 절로 이어짐.
 
 ### robot_description
 
 > CAD 메쉬와 표준 DH 파라미터만으로 UR10e를 URDF로 모델링하는 패키지임.  
-> 기구학은 DH 값만으로 결정되고 각 링크의 visual origin은 메쉬 정렬 전용이라 FK와 IK에 영향이 없으며, 뷰어 launch로 메쉬 정렬을 눈으로 확인함.
+> DH 값이 기구학을 결정하고 visual과 collision origin은 메쉬 정렬 전용이라 FK와 IK에 영향이 없으며, 뷰어 launch로 정렬을 눈으로 확인함.
 
-| 파일                                                                      | 계층 | 함수 또는 노드                                               | 역할                                                                                  | 참조                                                                                                                |
-| ------------------------------------------------------------------------- | ---- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [ur10e.urdf.xacro](src/robot_description/urdf/ur10e.urdf.xacro)           | 코어 | `dh_revolute` 매크로,<br>DH 프로퍼티                         | DH 한 행을 revolute + fixed 조인트 쌍으로 전개해 URDF 체인이 표준 DH 곱과 같아지게 함 | [_robot description.md_ 2\_해법: 조인트 하나를 둘로 분해](docs/robot_description.md#2-해법-조인트-하나를-둘로-분해) |
-| [view_robot.launch.py](src/robot_description/launch/view_robot.launch.py) | ROS  | robot_state_publisher,<br>joint_state_publisher_gui,<br>RViz | 슬라이더로 관절을 움직여 URDF와 메쉬 정렬을 확인하는 뷰어                             | 명령 : `run-view`                                                                                                   |
+- **코어** (이론은 [docs/robot_description.md](docs/robot_description.md))
+  - **[ur10e.urdf.xacro](src/robot_description/urdf/ur10e.urdf.xacro)** : `dh_revolute`와 `link_geometry` 매크로, DH 한 행을 revolute + fixed 조인트 쌍으로 전개해 URDF 체인이 표준 DH 곱과 같아지게 하고 링크마다 visual과 collision을 같은 origin으로 붙임 ([2\_해법: 조인트 하나를 둘로 분해](docs/robot_description.md#2-해법-조인트-하나를-둘로-분해))
+  - **[meshes/](src/robot_description/meshes/)** : visual DAE 7개와 collision STL 7개, 같은 프레임에 놓여 있어 origin을 공유하고 collision은 삼각형을 138개에서 1,874개로 줄인 감면 메쉬임
+- **ROS**
+  - **[view_robot.launch.py](src/robot_description/launch/view_robot.launch.py)** : robot_state_publisher, joint_state_publisher_gui, RViz 동시 기동, 슬라이더로 관절을 움직여 URDF와 메쉬 정렬을 확인하는 뷰어 (`run-view`)
 
 ### robot_kinematics
 
-> DH 테이블에서 FK, Jacobian, DLS IK, jog 한 스텝까지를 numpy만으로 구현한 코어 패키지임.  
-> ROS import가 없어 pytest 단독 검증과 시뮬레이터 교체가 가능하고, 모든 함수는 `dh` 인자를 생략하면 UR10e 테이블을 사용함.
+> URDF에서 읽은 체인으로 FK, Jacobian, DLS IK, jog 한 스텝을 numpy만으로 구현한 코어 패키지임.  
+> ROS import가 없어 pytest 단독 검증이 가능하고, 모든 함수는 `chain` 인자를 생략하면 번들된 UR10e 기술서를 사용하므로 다른 6축 로봇은 URDF만 바꾸면 됨.
 
-| 파일                                                             | 계층 | 함수 또는 노드                                                 | 역할                                                                  | 참조                                                                                                  |
-| ---------------------------------------------------------------- | ---- | -------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [dh.py](src/robot_kinematics/robot_kinematics/dh.py)             | 코어 | `UR10E_DH`,<br>`dh_transform(θ, d, a, α)`                      | UR10e DH 테이블과 한 행의 4×4 링크 변환                               | [_robot kinematics.md_ 1_DH 파라미터](docs/robot_kinematics.md#1-dh-파라미터-dhpy)                    |
-| [fk.py](src/robot_kinematics/robot_kinematics/fk.py)             | 코어 | `fk_frames(q)`,<br>`fk(q)`                                     | 관절각에서 관절 프레임 7개와 tool0 pose 계산                          | [_robot kinematics.md_ 2_FK](docs/robot_kinematics.md#2-fk-fkpy)                                      |
-| [jacobian.py](src/robot_kinematics/robot_kinematics/jacobian.py) | 코어 | `jacobian(q)`                                                  | 관절 속도를 tool0 선속도와 각속도로 잇는 6×6 행렬                     | [_robot kinematics.md_ 3_Jacobian](docs/robot_kinematics.md#3-jacobian-jacobianpy)                    |
-| [ik.py](src/robot_kinematics/robot_kinematics/ik.py)             | 코어 | `rotation_vector(R)`,<br>`solve_ik(target, q0)`,<br>`IKResult` | 목표 pose를 DLS 반복으로 관절각으로 풀고, 미수렴 시 `IKResult`로 보고 | [_robot kinematics.md_ 4_IK](docs/robot_kinematics.md#4-ik-ikpy)                                      |
-| [jog.py](src/robot_kinematics/robot_kinematics/jog.py)           | 코어 | `jog_step(q, twist, dt)`                                       | twist를 dt 동안 적분한 관절 증분을 DLS 한 스텝으로 계산               | [_robot kinematics.md_ 4.3\_뉴턴법에서 DLS로 확장](docs/robot_kinematics.md#43-뉴턴법에서-dls로-확장) |
-| [test/](src/robot_kinematics/test/)                              | 검증 | test_fk,<br>test_jacobian,<br>test_ik,<br>test_jog             | URDF 체인 대조, 수치미분 대조, IK 왕복과 실패 보고, jog 방향과 특이점 | `test-kinematics` (23 cases)                                                                          |
+- **코어** (이론은 [docs/robot_kinematics.md](docs/robot_kinematics.md))
+  - **[chain.py](src/robot_kinematics/robot_kinematics/chain.py)** : `Chain`, `Segment`, `from_urdf(urdf_xml)`, `load_default()`, base에서 tip까지의 경로를 움직이는 조인트 하나씩으로 줄이고 고정 조인트를 앞뒤 변환에 접어 넣어 조인트 이름과 축, 링크 이름, 한계를 함께 담음
+  - **[dh.py](src/robot_kinematics/robot_kinematics/dh.py)** : `dh_transform(θ, d, a, α)`, 표준 DH 한 행의 4×4 링크 변환으로 xacro의 `dh_revolute` 매크로와 같은 계산이며 런타임 경로에는 쓰이지 않음 ([1_DH 파라미터](docs/robot_kinematics.md#1-dh-파라미터-dhpy))
+  - **[fk.py](src/robot_kinematics/robot_kinematics/fk.py)** : `fk_joints(q)`, `fk_frames(q)`, `fk(q)`, 체인을 한 번 순회해 링크 프레임과 관절 축, 축 위의 점, tool0 pose 계산 ([2_FK](docs/robot_kinematics.md#2-fk-fkpy))
+  - **[jacobian.py](src/robot_kinematics/robot_kinematics/jacobian.py)** : `jacobian(q)`, URDF에 적힌 관절 축으로 관절 속도를 tool0 선속도와 각속도로 잇는 6×6 행렬 ([3_Jacobian](docs/robot_kinematics.md#3-jacobian-jacobianpy))
+  - **[ik.py](src/robot_kinematics/robot_kinematics/ik.py)** : `rotation_vector(R)`, `solve_ik(target, q0)`, `IKResult`, 목표 pose를 DLS 반복으로 관절각으로 풀고 미수렴 시 `IKResult`로 보고 ([4_IK](docs/robot_kinematics.md#4-ik-ikpy))
+  - **[jog.py](src/robot_kinematics/robot_kinematics/jog.py)** : `jog_step(q, twist, dt)`, twist를 dt 동안 적분한 관절 증분을 DLS 한 스텝으로 계산 ([4.3\_뉴턴법에서 DLS로 확장](docs/robot_kinematics.md#43-뉴턴법에서-dls로-확장))
+- **검증**
+  - **[test/](src/robot_kinematics/test/)** : test_fk, test_jacobian, test_ik, test_jog 23건, URDF 체인 대조, 수치미분 대조, IK 왕복과 실패 보고, jog 방향과 특이점 (`test-kinematics`)
 
 ### robot_trajectory
 
 > 관절 공간의 5차 다항식 궤적과 Cartesian 공간의 직선, 원호 경로를 만들고, pose 경로를 seed IK로 관절 경로로 바꾸는 코어 패키지임.  
 > robot_kinematics만 import하며 ROS 의존이 없음.
 
-| 파일                                                                         | 계층 | 함수 또는 노드                                                              | 역할                                                       | 참조                                                                                                         |
-| ---------------------------------------------------------------------------- | ---- | --------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [joint_traj.py](src/robot_trajectory/robot_trajectory/joint_traj.py)         | 코어 | `min_duration`,<br>`quintic_joint_trajectory(q0, qf)`,<br>`JointTrajectory` | 두 관절각 사이의 5차 다항식 궤적과 한계 기반 최소 시간     | [_robot trajectory.md_ 1_5차 다항식 궤적](docs/robot_trajectory.md#1-5차-다항식-궤적-joint_trajpy)           |
-| [cartesian_traj.py](src/robot_trajectory/robot_trajectory/cartesian_traj.py) | 코어 | `slerp(R0, R1, s)`                                                          | 두 회전행렬 사이의 geodesic interpolation                  | [_robot trajectory.md_ 2_SO(3) interpolation](docs/robot_trajectory.md#2-so3-interpolation-cartesian_trajpy) |
-| [cartesian_traj.py](src/robot_trajectory/robot_trajectory/cartesian_traj.py) | 코어 | `linear_pose_path`,<br>`circle_pose_path`                                   | 직선(LERP + SLERP)과 원호(자세 고정) pose 경로 생성        | [_robot trajectory.md_ 3_Pose 경로](docs/robot_trajectory.md#3-pose-경로)                                    |
-| [cartesian_traj.py](src/robot_trajectory/robot_trajectory/cartesian_traj.py) | 코어 | `cartesian_to_joint(poses, q_seed)`,<br>`CartesianJointPath`                | pose 경로를 seed IK로 관절 경로로 변환, 실패 waypoint 보고 | [_robot trajectory.md_ 4\_경로에서 관절로](docs/robot_trajectory.md#4-경로에서-관절로)                       |
-| [test/](src/robot_trajectory/test/)                                          | 검증 | test_joint_traj,<br>test_cartesian_traj                                     | 경계조건과 한계, SLERP 성질, 경로 기하, 관절 연속성        | `test-trajectory` (20 cases)                                                                                 |
+- **코어** (이론은 [docs/robot_trajectory.md](docs/robot_trajectory.md))
+  - **[joint_traj.py](src/robot_trajectory/robot_trajectory/joint_traj.py)** : `min_duration`, `quintic_joint_trajectory(q0, qf)`, `JointTrajectory`, 두 관절각 사이의 5차 다항식 궤적과 한계 기반 최소 시간 ([1_5차 다항식 궤적](docs/robot_trajectory.md#1-5차-다항식-궤적-joint_trajpy))
+  - **[cartesian_traj.py](src/robot_trajectory/robot_trajectory/cartesian_traj.py)** : SO(3) interpolation, pose 경로, seed IK 변환
+    - `slerp(R0, R1, s)` : 두 회전행렬 사이의 geodesic interpolation ([2_SO(3) interpolation](docs/robot_trajectory.md#2-so3-interpolation-cartesian_trajpy))
+    - `linear_pose_path`, `circle_pose_path` : 직선(LERP + SLERP)과 원호(자세 고정) pose 경로 생성 ([3_Pose 경로](docs/robot_trajectory.md#3-pose-경로))
+    - `cartesian_to_joint(poses, q_seed)`, `CartesianJointPath` : pose 경로를 seed IK로 관절 경로로 변환, 실패 waypoint 보고 ([4\_경로에서 관절로](docs/robot_trajectory.md#4-경로에서-관절로))
+- **검증**
+  - **[test/](src/robot_trajectory/test/)** : test_joint_traj, test_cartesian_traj 20건, 경계조건과 한계, SLERP 성질, 경로 기하, 관절 연속성 (`test-trajectory`)
 
 ### robot_bringup
 
 > 1단계 데모의 조립 계층으로, 코어 함수로 관절 시퀀스를 미리 만들고 이를 `/joint_states`로 재생해 RViz에 보여 줌.  
 > 목표를 받아 움직이는 제어는 하지 않으며 그 역할은 robot_control이 맡음.
 
-| 파일                                                                 | 계층 | 함수 또는 노드                                             | 역할                                                                    | 참조                                                                                                              |
-| -------------------------------------------------------------------- | ---- | ---------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| [demo_sequence.py](src/robot_bringup/robot_bringup/demo_sequence.py) | 코어 | `build_demo_sequence(dt)`,<br>`Segment`,<br>`DemoSequence` | zero, home, IK 목표, 직선, 원, home 복귀 순서의 관절 시퀀스를 사전 생성 | 호출 : `fk`, `solve_ik`, `quintic_joint_trajectory`, `linear_pose_path`, `circle_pose_path`, `cartesian_to_joint` |
-| [demo_player.py](src/robot_bringup/robot_bringup/demo_player.py)     | ROS  | 노드 `demo_player`                                         | 시퀀스를 한 행씩 `/joint_states`로 발행, 끝나면 `loop`에 따라 반복      | 토픽 : `/joint_states`,<br>파라미터 : `rate`, `loop`                                                              |
-| [demo.launch.py](src/robot_bringup/launch/demo.launch.py)            | ROS  | robot_state_publisher,<br>demo_player,<br>RViz             | 데모 기동, `use_rviz:=false` 헤드리스 지원                              | 명령 : `run-demo`,<br>인자 : `use_rviz`                                                                           |
-| [test/](src/robot_bringup/test/)                                     | 검증 | test_demo_sequence                                         | 시작과 끝 자세, 관절 연속성, 세그먼트 범위, 직선과 원 기하              | `test-bringup` (8 cases)                                                                                          |
+- **코어**
+  - **[demo_sequence.py](src/robot_bringup/robot_bringup/demo_sequence.py)** : `build_demo_sequence(dt)`, `Segment`, `DemoSequence`, zero, home, IK 목표, 직선, 원, home 복귀 순서의 관절 시퀀스를 사전 생성 (호출 `fk`, `solve_ik`, `quintic_joint_trajectory`, `linear_pose_path`, `circle_pose_path`, `cartesian_to_joint`)
+- **ROS**
+  - **[demo_player.py](src/robot_bringup/robot_bringup/demo_player.py)** : 노드 `demo_player`, 시퀀스를 한 행씩 `/joint_states`로 발행하고 끝나면 `loop`에 따라 반복 (토픽 `/joint_states`, 파라미터 `rate`, `loop`)
+  - **[demo.launch.py](src/robot_bringup/launch/demo.launch.py)** : robot_state_publisher, demo_player, RViz 동시 기동, `use_rviz:=false` 헤드리스 지원 (`run-demo`)
+- **검증**
+  - **[test/](src/robot_bringup/test/)** : test_demo_sequence 8건, 시작과 끝 자세, 관절 연속성, 세그먼트 범위, 직선과 원 기하 (`test-bringup`)
 
 ### robot_interfaces
 
 > 런타임 제어에 필요한 srv 정의만 담은 ament_cmake 패키지임.  
 > pose 목표를 받는 표준 srv가 없어 이 빈틈만 정의하고, 상태와 명령 토픽은 전부 표준 메시지를 사용함.
 
-| 파일                                                      | 계층 | 함수 또는 노드                                                                       | 역할                                             | 참조               |
-| --------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------ | ------------------------------------------------ | ------------------ |
-| [srv/MoveJ.srv, srv/MoveL.srv](src/robot_interfaces/srv/) | ROS  | 요청 : `Pose target`, `float64 duration`,<br>응답 : `bool success`, `string message` | 목표 pose와 duration 요청, 수락 여부와 사유 응답 | `move_j`, `move_l` |
+- **ROS**
+  - **[srv/MoveJ.srv, srv/MoveL.srv](src/robot_interfaces/srv/)** : 요청 `Pose target`, `float64 duration`, 응답 `bool success`, `string message`, 목표 pose와 duration 요청에 수락 여부와 사유를 즉시 응답 (`move_j`, `move_l`)
 
 ### robot_control
 
 > 2단계 런타임 제어 계층으로, motion_server 하나가 관절 상태를 소유하고 서비스, 마커, 키보드에서 온 목표를 실행함.  
 > 드라이버 흉내는 SimBackend 한 클래스에 가둬 Gazebo나 실로봇 전환 시 backend만 바꾸며, 상태머신과 변환은 ROS 무관 순수 Python이라 pytest로 검증함.
 
-| 파일                                                                     | 계층 | 함수 또는 노드                                                     | 역할                                                                  | 참조                                                                                                                                                                                                     |
-| ------------------------------------------------------------------------ | ---- | ------------------------------------------------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [state_machine.py](src/robot_control/robot_control/state_machine.py)     | 코어 | `MotionStateMachine`                                               | idle, moving, jog 전이와 busy 거부, deadman timeout 판정              | 사용처 : motion_server                                                                                                                                                                                   |
-| [conversions.py](src/robot_control/robot_control/conversions.py)         | 코어 | `pose_to_matrix`,<br>`matrix_to_pose`                              | Pose와 4×4 동차변환 상호 변환 (Shepperd)                              | 사용처 : motion_server                                                                                                                                                                                   |
-| [backend.py](src/robot_control/robot_control/backend.py)                 | ROS  | `SimBackend`                                                       | 관절 상태 소유와 `/joint_states` 발행 대행, 시뮬과 실로봇의 교체 경계 | 토픽 : `/joint_states`                                                                                                                                                                                   |
-| [motion_server.py](src/robot_control/robot_control/motion_server.py)     | ROS  | 노드 `motion_server`                                               | 서비스 목표를 수락 시점에 궤적으로 생성해 재생, jog 적분, 상태 발행   | 서비스 : `move_j`, `move_l`, `stop`,<br>토픽 : `/jog_twist`, `/motion_state`, `/tool_pose`,<br>호출 : `solve_ik`, `quintic_joint_trajectory`, `linear_pose_path`, `cartesian_to_joint`, `jog_step`, `fk` |
-| [marker_server.py](src/robot_control/robot_control/marker_server.py)     | ROS  | 노드 `marker_server`                                               | 마커 우클릭 메뉴를 서비스 호출로 전달 (드래그만으로는 미동작)         | 서비스 클라이언트 : `move_j`, `move_l`,<br>토픽 : `/tool_pose`                                                                                                                                           |
-| [teleop_keyboard.py](src/robot_control/robot_control/teleop_keyboard.py) | ROS  | 노드 `teleop_keyboard`                                             | 키 입력을 base 프레임 twist로 발행, 정지는 서버 deadman에 위임        | 명령 : `run-teleop`,<br>토픽 : `/jog_twist`                                                                                                                                                              |
-| [control.launch.py](src/robot_control/launch/control.launch.py)          | ROS  | robot_state_publisher,<br>motion_server,<br>marker_server,<br>RViz | 런타임 제어 기동, `use_rviz:=false` 헤드리스 지원                     | 명령 : `run-control`,<br>인자 : `use_rviz`                                                                                                                                                               |
-| [test/](src/robot_control/test/)                                         | 검증 | test_state_machine,<br>test_conversions                            | 상태머신 전이와 busy 거부, deadman, 변환 왕복                         | `test-control` (14 cases)                                                                                                                                                                                |
+- **코어**
+  - **[state_machine.py](src/robot_control/robot_control/state_machine.py)** : `MotionStateMachine`, idle, moving, jog 전이와 busy 거부, deadman timeout 판정 (사용처 motion_server)
+  - **[conversions.py](src/robot_control/robot_control/conversions.py)** : `pose_to_matrix`, `matrix_to_pose`, Pose와 4×4 동차변환 상호 변환 (Shepperd)
+- **ROS**
+  - **[backend.py](src/robot_control/robot_control/backend.py)** : `SimBackend`, 관절 상태 소유와 `/joint_states` 발행 대행, 시뮬과 실로봇의 교체 경계 (토픽 `/joint_states`)
+  - **[motion_server.py](src/robot_control/robot_control/motion_server.py)** : 노드 `motion_server`, 서비스 목표를 수락 시점에 궤적으로 생성해 재생, jog 적분, 상태 발행
+    - 서비스 : `move_j`, `move_l`, `stop`
+    - 토픽 : `/jog_twist`, `/motion_state`, `/tool_pose`
+    - 호출 : `solve_ik`, `quintic_joint_trajectory`, `linear_pose_path`, `cartesian_to_joint`, `jog_step`, `fk`
+  - **[marker_server.py](src/robot_control/robot_control/marker_server.py)** : 노드 `marker_server`, 마커 우클릭 메뉴를 서비스 호출로 전달하며 드래그만으로는 미동작 (서비스 클라이언트 `move_j`, `move_l`, 토픽 `/tool_pose`)
+  - **[teleop_keyboard.py](src/robot_control/robot_control/teleop_keyboard.py)** : 노드 `teleop_keyboard`, 키 입력을 base 프레임 twist로 발행하고 정지는 서버 deadman에 위임 (`run-teleop`, 토픽 `/jog_twist`)
+  - **[control.launch.py](src/robot_control/launch/control.launch.py)** : robot_state_publisher, motion_server, marker_server, RViz 동시 기동, `use_rviz:=false` 헤드리스 지원 (`run-control`)
+- **검증**
+  - **[test/](src/robot_control/test/)** : test_state_machine, test_conversions 14건, 상태머신 전이와 busy 거부, deadman, 변환 왕복 (`test-control`)
 
 ---
 
@@ -643,7 +649,7 @@ XAUTHORITY_PATH="$HOME/.Xauthority"            # RViz X11 인증 경로
 | `demo_player.loop`      | Parameter (bool)                   | 시퀀스 종료 시 반복 여부                                                                            |
 | `motion_server.*`       | Parameter                          | rate / home / v_max / a_max / linear_speed / jog_max_linear / jog_max_angular / jog_deadman_timeout |
 
-**라이브러리 API (순수 Python)** : 함수별 파일과 이론 문서 링크는 구현 상세의 패키지별 표에서 계층이 코어인 행에 정리함 ([구현 상세](#구현-상세)).
+**라이브러리 API (순수 Python)** : 함수별 파일과 이론 문서 링크는 구현 상세의 패키지별 목록에서 코어 항목에 정리함 ([구현 상세](#구현-상세)).
 
 **네트워크 구성**
 
