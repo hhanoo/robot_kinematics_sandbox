@@ -1,8 +1,8 @@
 # =========================================================================
 # Base Image
 # =========================================================================
-# - https://hub.docker.com/r/hhanoo/ros/tags
-FROM hhanoo/ros:humble-desktop
+# - https://hub.docker.com/r/osrf/ros/tags
+FROM osrf/ros:jazzy-desktop
 
 # - Build dependencies
 ARG DEBIAN_FRONTEND=noninteractive
@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ROS2
 # =========================================================================
 # - ROS2 setup
-ARG ROS_VERSION=humble
+ARG ROS_VERSION=jazzy
 ENV ROS_DISTRO=${ROS_VERSION}
 
 # - URDF / Visualization tools
@@ -45,6 +45,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-joint-state-publisher \
     ros-${ROS_DISTRO}-joint-state-publisher-gui \
+    && rm -rf /var/lib/apt/lists/*
+
+# - Simulation (Gazebo Harmonic) and ros2_control
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-${ROS_DISTRO}-ros-gz \
+    ros-${ROS_DISTRO}-gz-ros2-control \
+    ros-${ROS_DISTRO}-ros2-control \
+    ros-${ROS_DISTRO}-ros2-controllers \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================================================================
@@ -56,13 +64,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-numpy \
     python3-pytest \
     && rm -rf /var/lib/apt/lists/*
-
-# - ROS2-compatible setuptools/packaging for ament_python builds
-RUN python3 -m pip install --no-cache-dir --upgrade \
-    pip \
-    setuptools==58.2.0 \
-    packaging==21.3 \
-    wheel
 
 # =========================================================================
 # Development Tools

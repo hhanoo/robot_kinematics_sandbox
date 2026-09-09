@@ -1,5 +1,5 @@
 # ===== ROS env =====
-[ -f /opt/ros/humble/setup.bash ]  && source /opt/ros/humble/setup.bash
+[ -f /opt/ros/jazzy/setup.bash ]  && source /opt/ros/jazzy/setup.bash
 [ -f /ros2_ws/install/setup.bash ] && source /ros2_ws/install/setup.bash
 [ -f /ros2_ws/docker/config.sh ]   && source /ros2_ws/docker/config.sh
 

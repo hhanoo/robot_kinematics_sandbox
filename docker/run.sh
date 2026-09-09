@@ -56,7 +56,10 @@ else
         --privileged \
         --network host \
         --ipc=host \
+        --gpus all \
         \
+        -e NVIDIA_VISIBLE_DEVICES=all \
+        -e NVIDIA_DRIVER_CAPABILITIES=all \
         -e DISPLAY="$DISPLAY" \
         -e QT_X11_NO_MITSHM=1 \
         -e HOST_UID="$(id -u)" \
