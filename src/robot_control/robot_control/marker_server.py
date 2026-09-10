@@ -12,11 +12,7 @@ from geometry_msgs.msg import PoseStamped
 from interactive_markers import InteractiveMarkerServer
 from interactive_markers.menu_handler import MenuHandler
 from rclpy.node import Node
-from visualization_msgs.msg import (
-    InteractiveMarker,
-    InteractiveMarkerControl,
-    Marker,
-)
+from visualization_msgs.msg import InteractiveMarker, InteractiveMarkerControl, Marker
 
 from robot_interfaces.srv import MoveJ, MoveL
 
@@ -46,9 +42,9 @@ class MarkerServer(Node):
     # =========================================================
     # Marker construction
     # =========================================================
-    def _make_marker(self, pose):
+    def _make_marker(self, pose, frame):
         marker = InteractiveMarker()
-        marker.header.frame_id = "base_link"
+        marker.header.frame_id = frame
         marker.name = "goal"
         marker.description = "motion goal (right-click)"
         marker.scale = 0.25
@@ -59,7 +55,10 @@ class MarkerServer(Node):
         sphere.type = Marker.SPHERE
         sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.06
         sphere.color.r, sphere.color.g, sphere.color.b, sphere.color.a = (
-            0.2, 0.6, 1.0, 0.8,
+            0.2,
+            0.6,
+            1.0,
+            0.8,
         )
         center = InteractiveMarkerControl()
         center.interaction_mode = InteractiveMarkerControl.MENU
@@ -94,7 +93,8 @@ class MarkerServer(Node):
         self._tool_pose = msg.pose
         if not self._initialized:
             self._initialized = True
-            self.server.insert(self._make_marker(msg.pose))
+            # Take the frame from the pose the marker mirrors
+            self.server.insert(self._make_marker(msg.pose, msg.header.frame_id))
             self.menu.apply(self.server, "goal")
             self.server.applyChanges()
             self.get_logger().info("goal marker ready")

@@ -33,6 +33,7 @@ from robot_control.backend import GazeboBackend, SimBackend
 from robot_control.conversions import matrix_to_pose, pose_to_matrix
 from robot_control.state_machine import MotionStateMachine
 from robot_interfaces.srv import MoveJ, MoveL
+from robot_kinematics.chain import load_default
 from robot_kinematics.collision import (
     check_self_collision,
     load_model,
@@ -44,14 +45,6 @@ from robot_kinematics.jog import jog_step
 from robot_trajectory.cartesian_traj import cartesian_to_joint, linear_pose_path
 from robot_trajectory.joint_traj import quintic_joint_trajectory
 
-JOINT_NAMES = [
-    "link_1_joint",
-    "link_2_joint",
-    "link_3_joint",
-    "link_4_joint",
-    "link_5_joint",
-    "link_6_joint",
-]
 # fmt: off
 HOME = [0.0, -math.pi / 2, math.pi / 2, -math.pi / 2, -math.pi / 2, 0.0]
 # fmt: on
@@ -84,12 +77,20 @@ class MotionServer(Node):
         self.collision_margin = self.get_parameter("collision_margin").value
         self.dt = 1.0 / rate
 
+        self.chain = load_default()
+        self.base_frame = self.chain.base_link
+        if len(home) != len(self.chain):
+            self.get_logger().error(
+                f"home has {len(home)} values but the URDF has {len(self.chain)} joints"
+            )
+            raise SystemExit(1)
+
         # State machine, backend, trajectory buffer
         self.sm = MotionStateMachine(self.get_parameter("jog_deadman_timeout").value)
         # "gazebo" hands the joint state to the simulator; "sim" owns it here
         kind = self.get_parameter("backend").value
         backend_type = GazeboBackend if kind == "gazebo" else SimBackend
-        self.backend = backend_type(self, JOINT_NAMES, home)
+        self.backend = backend_type(self, self.chain.joint_names, home)
         self._traj = None
         self._traj_i = 0
         self._jog_twist = np.zeros(6)
@@ -252,7 +253,7 @@ class MotionServer(Node):
         # 2. Publish tool pose from FK
         msg = PoseStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "base_link"
+        msg.header.frame_id = self.base_frame
         msg.pose = matrix_to_pose(fk(q))
         self.pub_tool.publish(msg)
 

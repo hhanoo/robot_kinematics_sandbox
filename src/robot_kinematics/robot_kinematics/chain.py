@@ -74,6 +74,11 @@ class Chain:
         """Movable joint names in chain order."""
         return tuple(s.name for s in self.segments)
 
+    @property
+    def base_link(self):
+        """Name of the link every pose in this chain is expressed against."""
+        return self.link_names[0]
+
     def link_frame(self, name):
         """(frame index, 4x4 pose in that frame) for a URDF link on the path."""
         for link, placement in self.link_frames:

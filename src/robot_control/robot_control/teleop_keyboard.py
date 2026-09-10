@@ -21,6 +21,8 @@ import rclpy
 from geometry_msgs.msg import TwistStamped
 from rclpy.node import Node
 
+from robot_kinematics.chain import load_default
+
 BASE_LIN = 0.1  # [m/s]
 BASE_ANG = 0.5  # [rad/s]
 # fmt: off
@@ -45,6 +47,8 @@ def main(args=None):
     rclpy.init(args=args)
     node = Node("teleop_keyboard")
     pub = node.create_publisher(TwistStamped, "jog_twist", 10)
+    # The URDF names the frame these twists are expressed in
+    base_frame = load_default().base_link
     scale = 1.0
     print(HELP)
     print(f"scale: {scale:.2f}")
@@ -77,7 +81,7 @@ def main(args=None):
             axis, sign = KEYMAP[key]
             msg = TwistStamped()
             msg.header.stamp = node.get_clock().now().to_msg()
-            msg.header.frame_id = "base_link"
+            msg.header.frame_id = base_frame
             value = sign * scale * (BASE_LIN if axis < 3 else BASE_ANG)
             if axis == 0:
                 msg.twist.linear.x = value

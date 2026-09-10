@@ -16,15 +16,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 
 from robot_bringup.demo_sequence import build_demo_sequence
-
-JOINT_NAMES = [
-    "link_1_joint",
-    "link_2_joint",
-    "link_3_joint",
-    "link_4_joint",
-    "link_5_joint",
-    "link_6_joint",
-]
+from robot_kinematics.chain import load_default
 
 
 class DemoPlayer(Node):
@@ -52,6 +44,7 @@ class DemoPlayer(Node):
         )
 
         # Publisher and playback timer
+        self.joint_names = list(load_default().joint_names)
         self.pub = self.create_publisher(JointState, "joint_states", 10)
         self.index = 0
         self.timer = self.create_timer(1.0 / rate, self.on_timer)
@@ -65,7 +58,7 @@ class DemoPlayer(Node):
         # Publish the current row
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = JOINT_NAMES
+        msg.name = self.joint_names
         msg.position = [float(v) for v in self.seq.q[self.index]]
         self.pub.publish(msg)
 
