@@ -2,8 +2,8 @@
 
 **CAD(STL/DAE)와 DH 파라미터만으로 로봇을 직접 모델링하고, MoveIt 없이 구현한 FK / IK / 궤적 생성을 RViz로 검증하는 ROS 2 샌드박스**
 
-[![ROS2](https://img.shields.io/badge/ROS2-Humble-22314E?logo=ros&logoColor=white)](https://docs.ros.org/en/humble/)
-[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E?logo=ros&logoColor=white)](https://docs.ros.org/en/jazzy/)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-Supported-2496ED?logo=docker&logoColor=white)](docker/)
 
 ---
@@ -94,7 +94,7 @@ CAD (DAE) + DH parameters
 - **robot_bringup** (Python): 데모 시퀀스 빌더와 JointState 스트리밍 노드, RViz 런치
 - **robot_interfaces** (srv): 런타임 제어 서비스 정의 (MoveJ / MoveL)로, 표준에 없는 pose 목표 서비스만 최소 정의
 - **robot_control** (Python): 목표 pose를 서비스로 받아 IK, 궤적을 실행하는 motion_server와 RViz 마커, 키보드 jog 클라이언트로, 상태머신은 ROS 무관 순수 Python
-- **docker** (Bash): ROS 2 Humble 개발 컨테이너 표준 구성 (build/run/commands)
+- **docker** (Bash): ROS 2 Jazzy 개발 컨테이너 표준 구성 (build/run/commands)
 
 ### 적용 가능 영역
 
@@ -234,7 +234,7 @@ robot_kinematics_sandbox/
 │       └── test/                       # 상태머신과 변환 pytest (14)
 │
 ├── docker/
-│   ├── Dockerfile                      # ROS 2 Humble desktop + xacro/RViz/numpy
+│   ├── Dockerfile                      # ROS 2 Jazzy desktop + xacro/RViz/numpy
 │   ├── build.sh                        # 이미지 빌드
 │   ├── run.sh                          # 컨테이너 실행/재사용 (X11, 저장소 마운트)
 │   ├── entrypoint.sh                   # 종료 시 소유권 복원
@@ -385,9 +385,9 @@ ros2 launch robot_bringup demo.launch.py
 
 | 항목   | 요구사항                    |
 | ------ | --------------------------- |
-| OS     | Ubuntu 22.04 LTS            |
-| ROS 2  | Humble                      |
-| Python | 3.10 이상                   |
+| OS     | Ubuntu 24.04 LTS            |
+| ROS 2  | Jazzy                       |
+| Python | 3.12 이상                   |
 | Docker | 20.10 이상 (Docker 사용 시) |
 
 ### 소프트웨어 의존성
@@ -427,8 +427,8 @@ cd robot_kinematics_sandbox
 #### 1. 시스템 의존성 설치
 
 ```bash
-sudo apt install ros-humble-xacro ros-humble-robot-state-publisher \
-    ros-humble-joint-state-publisher-gui ros-humble-rviz2 \
+sudo apt install ros-jazzy-xacro ros-jazzy-robot-state-publisher \
+    ros-jazzy-joint-state-publisher-gui ros-jazzy-rviz2 \
     python3-numpy python3-pytest
 ```
 

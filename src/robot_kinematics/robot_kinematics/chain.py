@@ -258,7 +258,7 @@ def from_urdf_file(path, base=None, tip=None):
 def default_urdf():
     """URDF text of the bundled robot_description xacro, expanded once.
 
-    Expanding needs the xacro module (ros-humble-xacro). Callers outside a
+    Expanding needs the xacro module (ros-jazzy-xacro). Callers outside a
     ROS environment should supply their own URDF text instead.
     """
     try:

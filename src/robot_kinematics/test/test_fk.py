@@ -84,7 +84,7 @@ class TestDHTransform:
 
 # ---------------------------------------------------------------------------
 # Ground truth from the xacro-expanded URDF (requires the xacro python module
-# from ros-humble-xacro; run inside the project container).
+# from ros-jazzy-xacro; run inside the project container).
 # ---------------------------------------------------------------------------
 
 
