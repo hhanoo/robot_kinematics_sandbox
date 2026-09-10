@@ -1,0 +1,25 @@
+# =========================================================
+# ros2_control controllers for the Gazebo simulation
+# - update_rate matches motion_server's 50 Hz tick
+# - the position controller takes the joint vector motion_server
+#   already produces every tick, so no trajectory action is needed
+# =========================================================
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    joint_position_controller:
+      type: position_controllers/JointGroupPositionController
+
+joint_position_controller:
+  ros__parameters:
+    joints:
+      - link_1_joint
+      - link_2_joint
+      - link_3_joint
+      - link_4_joint
+      - link_5_joint
+      - link_6_joint

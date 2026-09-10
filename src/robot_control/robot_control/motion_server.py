@@ -29,7 +29,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
-from robot_control.backend import SimBackend
+from robot_control.backend import GazeboBackend, SimBackend
 from robot_control.conversions import matrix_to_pose, pose_to_matrix
 from robot_control.state_machine import MotionStateMachine
 from robot_interfaces.srv import MoveJ, MoveL
@@ -73,6 +73,7 @@ class MotionServer(Node):
         self.declare_parameter("jog_max_angular", 1.0)
         self.declare_parameter("jog_deadman_timeout", 0.3)
         self.declare_parameter("collision_margin", 0.0)
+        self.declare_parameter("backend", "sim")
         rate = self.get_parameter("rate").value
         home = self.get_parameter("home").value
         self.v_max = self.get_parameter("v_max").value
@@ -85,7 +86,10 @@ class MotionServer(Node):
 
         # State machine, backend, trajectory buffer
         self.sm = MotionStateMachine(self.get_parameter("jog_deadman_timeout").value)
-        self.backend = SimBackend(self, JOINT_NAMES, home)
+        # "gazebo" hands the joint state to the simulator; "sim" owns it here
+        kind = self.get_parameter("backend").value
+        backend_type = GazeboBackend if kind == "gazebo" else SimBackend
+        self.backend = backend_type(self, JOINT_NAMES, home)
         self._traj = None
         self._traj_i = 0
         self._jog_twist = np.zeros(6)
@@ -97,7 +101,7 @@ class MotionServer(Node):
         self._tick_count = 0
         self._last_collision_warn = 0.0
 
-        # Fit the capsules now so the first goal is not the one that waits
+        # Fit the capsules now, not on the first goal
         load_model()
 
         # Services

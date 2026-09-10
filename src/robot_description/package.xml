@@ -31,5 +31,8 @@
   <!-- ========================================================= -->
   <export>
     <build_type>ament_cmake</build_type>
+
+    <!-- * Lets Gazebo resolve model://robot_description/... mesh URIs -->
+    <gazebo_ros gazebo_model_path="${prefix}/.."/>
   </export>
 </package>

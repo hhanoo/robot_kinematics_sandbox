@@ -23,7 +23,12 @@ setup(
         # Install package.xml for dependency management
         ("share/" + package_name, ["package.xml"]),
         # Install launch files
-        ("share/" + package_name + "/launch", ["launch/control.launch.py"]),
+        (
+            "share/" + package_name + "/launch",
+            ["launch/control.launch.py", "launch/gazebo.launch.py"],
+        ),
+        # Install controller configuration
+        ("share/" + package_name + "/config", ["config/controllers.yaml"]),
         # Install RViz configuration
         ("share/" + package_name + "/rviz", ["rviz/control.rviz"]),
     ],

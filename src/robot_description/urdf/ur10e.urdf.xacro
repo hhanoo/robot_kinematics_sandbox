@@ -31,7 +31,7 @@
        해결 방법:
          DH 조인트 1개를 URDF 조인트 2개로 분리
        ========================================================= -->
-  
+
   <!-- =========================================================
        DH → URDF conversion strategy (변환 전략)
 
@@ -48,6 +48,21 @@
        이렇게 하면 DH와 동일한 변환 순서 유지
        Trans(z,d) → Rot(z,θ) → Trans(x,a) → Rot(x,α)
        ========================================================= -->
+
+  <!-- =========================================================
+       1. Declarations (선언)
+
+       인자와 프로퍼티만 두며, 여기서는 링크도 조인트도 만들지 않는다.
+       값을 한곳에 모아 두어야 로봇을 바꿀 때 고칠 자리가 하나로 남는다.
+       ========================================================= -->
+
+  <!-- ===============================
+       Arguments
+       - sim_gazebo: ros2_control과 Gazebo 플러그인 포함 여부
+       - simulation_controllers: Gazebo 플러그인에 넘길 컨트롤러 YAML 경로
+       =============================== -->
+  <xacro:arg name="sim_gazebo" default="false"/>
+  <xacro:arg name="simulation_controllers" default=""/>
 
   <!-- ===============================
        DH parameters for UR10e
@@ -78,6 +93,23 @@
   <xacro:property name="alpha6" value="0.0"/>
 
   <!-- ===============================
+       Joint limits
+       - URDF의 <limit>과 ros2_control의 command_interface가 같이 읽음
+       - 두 값이 어긋나면 URDF는 허용하는데 컨트롤러가 자르는 상태가 됨
+       =============================== -->
+  <xacro:property name="joint_lower"    value="-6.283"/>
+  <xacro:property name="joint_upper"    value="6.283"/>
+  <xacro:property name="joint_effort"   value="200"/>
+  <xacro:property name="joint_velocity" value="3.0"/>
+
+  <!-- =========================================================
+       2. Macros (매크로)
+
+       반복 구조를 찍어내는 정의만 두며, 호출은 3번과 4번에서 한다.
+       정의는 아무것도 전개하지 않으므로 조건부 매크로도 여기 함께 둔다.
+       ========================================================= -->
+
+  <!-- ===============================
        Macro: Classic DH → URDF
        =============================== -->
   <xacro:macro name="dh_revolute" params="name parent child a d alpha">
@@ -90,7 +122,8 @@
       <child  link="${name}_virtual"/>
       <origin xyz="0 0 ${d}" rpy="0 0 0"/>
       <axis xyz="0 0 1"/>
-      <limit lower="-6.283" upper="6.283" effort="200" velocity="3.0"/>
+      <limit lower="${joint_lower}" upper="${joint_upper}"
+             effort="${joint_effort}" velocity="${joint_velocity}"/>
     </joint>
 
     <!-- 2) Virtual link (기구학 계산용, 시각화 없음) -->
@@ -129,66 +162,121 @@
     </collision>
   </xacro:macro>
 
+  <!-- ===============================
+       Macro: Cylinder inertia
+       - collision 캡슐과 같은 원기둥으로 근사
+       - 질량은 UR10e 공식 값 (ur_description physical_parameters.yaml)
+       =============================== -->
+  <xacro:macro name="cylinder_inertial" params="mass radius length xyz rpy">
+    <inertial>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${mass * (3.0 * radius * radius + length * length) / 12.0}"
+               iyy="${mass * (3.0 * radius * radius + length * length) / 12.0}"
+               izz="${mass * radius * radius / 2.0}"
+               ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ===============================
+       Macro: ros2_control joint
+       - 위치 명령 1개, 상태 3개
+       - 4번 블록 전용이라 sim_gazebo:=true 일 때만 호출됨
+       =============================== -->
+  <xacro:macro name="control_joint" params="name initial">
+    <joint name="${name}">
+      <command_interface name="position">
+        <param name="min">${joint_lower}</param>
+        <param name="max">${joint_upper}</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">${initial}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
   <!-- =========================================================
+       3. Model (본문)
+
+       1번의 값과 2번의 매크로로 실제 링크와 조인트를 만든다.
+       sim_gazebo와 무관하게 항상 전개되는 부분이다.
+       ========================================================= -->
+
+  <!-- ===============================
        Links and meshes
 
        중요 원칙:
        - joint / DH 파라미터는 "기구학"
        - visual origin은 "메쉬 정렬"
        - 메쉬 보정은 FK/IK에 영향 없음
-       ========================================================= -->
+       =============================== -->
 
   <!-- Base link -->
   <link name="base_link">
     <xacro:link_geometry mesh="base" xyz="0 0 0" rpy="0 0 0"/>
+    <xacro:cylinder_inertial mass="4.000" radius="0.096" length="0.110"
+                             xyz="0.0022 -0.0009 0.0489" rpy="0.0227 0.0580 0.0007"/>
   </link>
 
   <!-- Link 1: Shoulder -->
   <link name="link1">
     <xacro:link_geometry mesh="shoulder" xyz="0 0 0" rpy="-1.5708 -3.14159 0"/>
+    <xacro:cylinder_inertial mass="7.369" radius="0.110" length="0.223"
+                             xyz="-0.0002 -0.0027 0.0139" rpy="2.0637 -0.0289 -0.0483"/>
   </link>
 
   <!-- Link 2: Upper Arm -->
   <link name="link2">
     <xacro:link_geometry mesh="upperarm" xyz="0.6127 0 0.1762" rpy="1.5708 0 -1.5708"/>
+    <xacro:cylinder_inertial mass="13.051" radius="0.111" length="0.750"
+                             xyz="0.3156 0.0002 0.1646" rpy="-3.1345 -1.5332 3.1342"/>
   </link>
 
   <!-- Link 3: Forearm -->
   <link name="link3">
     <xacro:link_geometry mesh="forearm" xyz="0.57155 0 0.0393" rpy="1.5708 0 -1.5708"/>
+    <xacro:cylinder_inertial mass="3.989" radius="0.081" length="0.679"
+                             xyz="0.2926 0.0004 0.0518" rpy="3.1043 -1.5288 -3.1027"/>
   </link>
 
   <!-- Link 4: Wrist 1 -->
   <link name="link4">
     <xacro:link_geometry mesh="wrist1" xyz="0 -0.135 0" rpy="0 0 0"/>
+    <xacro:cylinder_inertial mass="2.100" radius="0.073" length="0.134"
+                             xyz="-0.0003 -0.0130 0.0057" rpy="0.2745 -0.0305 -0.0042"/>
   </link>
 
   <!-- Link 5: Wrist 2 -->
   <link name="link5">
     <xacro:link_geometry mesh="wrist2" xyz="0 0.12 0" rpy="1.5708 0 0"/>
+    <xacro:cylinder_inertial mass="1.980" radius="0.063" length="0.126"
+                             xyz="-0.0001 0.0114 0.0081" rpy="-0.1138 -0.0058 0.0003"/>
   </link>
 
   <!-- Link 6: Wrist 3 / Tool Flange -->
   <link name="link6">
     <xacro:link_geometry mesh="wrist3" xyz="0 0 -0.1168" rpy="1.5708 0 0"/>
+    <xacro:cylinder_inertial mass="0.615" radius="0.050" length="0.101"
+                             xyz="0.0003 -0.0020 -0.0294" rpy="1.7231 -0.0333 -0.0387"/>
   </link>
 
-  <!-- =========================================================
-     Joint structure (DH → URDF mapping)
+  <!-- ===============================
+       Joint structure (DH → URDF mapping)
 
-     Each DH joint is split into:
-       - revolute joint : d, θ
-       - fixed joint    : a, α
-       - virtual link   : frame separation only
+       Each DH joint is split into:
+         - revolute joint : d, θ
+         - fixed joint    : a, α
+         - virtual link   : frame separation only
 
-     Reason:
-       URDF applies joint origin before rotation,
-       so DH order must be preserved manually.
+       Reason:
+         URDF applies joint origin before rotation,
+         so DH order must be preserved manually.
 
-     Kinematic chain:
-       base_link → link1 → link2 → link3 → link4 → link5 → link6 → tool0
-     ========================================================= -->
-
+       Kinematic chain:
+         base_link → link1 → link2 → link3 → link4 → link5 → link6 → tool0
+       =============================== -->
 
   <!-- Joint 1: Shoulder Pan -->
   <xacro:dh_revolute name="link_1_joint"
@@ -227,5 +315,43 @@
     <child  link="tool0"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
+
+  <!-- =========================================================
+       4. Simulation (조건부)
+
+       sim_gazebo:=true 일 때만 전개되는 시뮬레이터 전용 블록이다.
+       기본값이 false라 뷰어와 기구학 테스트는 순수 URDF를 그대로 받고,
+       ros2_control 태그를 모르는 MuJoCo도 같은 파일을 읽을 수 있다.
+       ========================================================= -->
+  <xacro:if value="$(arg sim_gazebo)">
+
+    <!-- Anchor the base: an SDF model without a world joint free-falls -->
+    <link name="world"/>
+    <joint name="world_fixed" type="fixed">
+      <parent link="world"/>
+      <child  link="base_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <ros2_control name="GazeboSimSystem" type="system">
+      <hardware>
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </hardware>
+      <xacro:control_joint name="link_1_joint" initial="0.0"/>
+      <xacro:control_joint name="link_2_joint" initial="${-pi/2}"/>
+      <xacro:control_joint name="link_3_joint" initial="${pi/2}"/>
+      <xacro:control_joint name="link_4_joint" initial="${-pi/2}"/>
+      <xacro:control_joint name="link_5_joint" initial="${-pi/2}"/>
+      <xacro:control_joint name="link_6_joint" initial="0.0"/>
+    </ros2_control>
+
+    <gazebo>
+      <plugin filename="gz_ros2_control-system"
+              name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>$(arg simulation_controllers)</parameters>
+      </plugin>
+    </gazebo>
+
+  </xacro:if>
 
 </robot>
