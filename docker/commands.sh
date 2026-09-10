@@ -64,6 +64,11 @@ run-teleop() {
     ros2 run robot_control teleop_keyboard "$@"
 }
 
+run-gazebo() {
+    source-ros-ws
+    ros2 launch robot_control gazebo.launch.py "$@"
+}
+
 # ===== Help =====
 cmd-help() {
     printf "\n[robot_kinematics_sandbox] Commands:\n\n"
@@ -84,6 +89,7 @@ cmd-help() {
     printf "    %-18s - %s\n" "run-demo"         "FK/IK/trajectory demo sequence (RViz)"
     printf "    %-18s - %s\n" "run-control"      "Motion server + goal marker + RViz (runtime control)"
     printf "    %-18s - %s\n" "run-teleop"       "Keyboard Cartesian jog (separate shell, publishes /jog_twist)"
+    printf "    %-18s - %s\n" "run-gazebo"       "Gazebo physics + ros2_control + motion server (RViz)"
     printf "\n"
 
     printf "  Config / Help:\n"

@@ -19,12 +19,12 @@
 - [시스템 구조](#시스템-구조)
 - [프로젝트 구조](#프로젝트-구조)
 - [구현 상세](#구현-상세)
-  - [robot_description](#robot_description)
-  - [robot_kinematics](#robot_kinematics)
-  - [robot_trajectory](#robot_trajectory)
-  - [robot_bringup](#robot_bringup)
-  - [robot_interfaces](#robot_interfaces)
-  - [robot_control](#robot_control)
+  - [robot\_description](#robot_description)
+  - [robot\_kinematics](#robot_kinematics)
+  - [robot\_trajectory](#robot_trajectory)
+  - [robot\_bringup](#robot_bringup)
+  - [robot\_interfaces](#robot_interfaces)
+  - [robot\_control](#robot_control)
 - [빠른 시작](#빠른-시작)
   - [Option 1: Docker (권장)](#option-1-docker-권장)
   - [Option 2: Native](#option-2-native)
@@ -49,6 +49,7 @@
   - [3. 데모 재생](#3-데모-재생)
   - [4. 시퀀스 수정](#4-시퀀스-수정)
   - [5. 런타임 제어](#5-런타임-제어)
+  - [6. Gazebo 연동](#6-gazebo-연동)
 - [설정](#설정)
   - [Docker 설정 (`docker/config.sh`)](#docker-설정-dockerconfigsh)
   - [Launch 인자](#launch-인자)
@@ -56,7 +57,7 @@
 - [문제 해결](#문제-해결)
   - [1. RViz 창이 뜨지 않음](#1-rviz-창이-뜨지-않음)
   - [2. run.sh 실행 시 이미지 없음 오류](#2-runsh-실행-시-이미지-없음-오류)
-  - [3. robot_kinematics 모듈 import 오류](#3-robot_kinematics-모듈-import-오류)
+  - [3. robot\_kinematics 모듈 import 오류](#3-robot_kinematics-모듈-import-오류)
 - [로드맵](#로드맵)
 - [라이선스](#라이선스)
 - [Maintainer](#maintainer)
@@ -88,13 +89,13 @@ CAD (DAE) + DH parameters
 
 ### 주요 구성요소
 
-- **robot_description** (xacro): 표준 DH 파라미터를 URDF로 변환한 UR10e 모델과 DAE 메쉬, RViz 설정
+- **robot_description** (xacro): 표준 DH 파라미터를 URDF로 변환한 UR10e 모델과 DAE/STL 메쉬, 관성, RViz 설정
 - **robot_kinematics** (Python): URDF 체인 기반 FK / 기하학적 Jacobian / DLS 반복 IK / jog 스텝 / 자기충돌 검사로, ROS import 없는 순수 numpy 코어
 - **robot_trajectory** (Python): 5차 다항식 관절 궤적과 직선과 원호 Cartesian 경로 생성으로, ROS import 없는 순수 numpy 코어
 - **robot_bringup** (Python): 데모 시퀀스 빌더와 JointState 스트리밍 노드, RViz 런치
 - **robot_interfaces** (srv): 런타임 제어 서비스 정의 (MoveJ / MoveL)로, 표준에 없는 pose 목표 서비스만 최소 정의
 - **robot_control** (Python): 목표 pose를 서비스로 받아 IK, 궤적을 실행하는 motion_server와 RViz 마커, 키보드 jog 클라이언트로, 상태머신은 ROS 무관 순수 Python
-- **docker** (Bash): ROS 2 Jazzy 개발 컨테이너 표준 구성 (build/run/commands)
+- **docker** (Bash): ROS 2 Jazzy + Gazebo Harmonic 개발 컨테이너 표준 구성 (build/run/commands)
 
 ### 적용 가능 영역
 
@@ -225,16 +226,18 @@ robot_kinematics_sandbox/
 │       ├── robot_control/
 │       │   ├── state_machine.py        # idle/moving/jog 전이 (순수 Python)
 │       │   ├── conversions.py          # Pose ↔ 4x4 행렬 (Shepperd)
-│       │   ├── backend.py              # SimBackend: /joint_states 발행 대행
+│       │   ├── backend.py              # Sim/Gazebo 백엔드: 관절 상태 입출력 경계
 │       │   ├── motion_server.py        # move_j/move_l/stop + 재생 타이머
 │       │   ├── marker_server.py        # RViz 인터랙티브 마커 목표 지정
 │       │   └── teleop_keyboard.py      # 키보드 jog (jog_twist 발행)
 │       ├── launch/control.launch.py    # rsp + motion_server + marker_server + RViz
+│       ├── launch/gazebo.launch.py     # Gazebo + ros2_control + motion_server
+│       ├── config/controllers.yaml     # joint_state_broadcaster + 위치 컨트롤러
 │       ├── rviz/control.rviz           # 제어용 RViz 레이아웃
 │       └── test/                       # 상태머신과 변환 pytest (14)
 │
 ├── docker/
-│   ├── Dockerfile                      # ROS 2 Jazzy desktop + xacro/RViz/numpy
+│   ├── Dockerfile                      # ROS 2 Jazzy desktop + ros_gz/ros2_control/numpy
 │   ├── build.sh                        # 이미지 빌드
 │   ├── run.sh                          # 컨테이너 실행/재사용 (X11, 저장소 마운트)
 │   ├── entrypoint.sh                   # 종료 시 소유권 복원
@@ -265,6 +268,8 @@ robot_kinematics_sandbox/
 
 - **코어** (이론은 [docs/robot_description.md](docs/robot_description.md))
   - **[ur10e.urdf.xacro](src/robot_description/urdf/ur10e.urdf.xacro)** : `dh_revolute`와 `link_geometry` 매크로, DH 한 행을 revolute + fixed 조인트 쌍으로 전개해 URDF 체인이 표준 DH 곱과 같아지게 하고 링크마다 visual과 collision을 같은 origin으로 붙임 ([2\_해법: 조인트 하나를 둘로 분해](docs/robot_description.md#2-해법-조인트-하나를-둘로-분해))
+  - `cylinder_inertial` 매크로가 UR 공식 질량으로 원통 근사 관성을 채우는데, 관성이 없는 링크는 SDF 변환에서 통째로 사라져 Gazebo가 모델을 만들지 못하기 때문임
+  - `sim_gazebo:=true`일 때만 world 고정 조인트와 ros2_control, Gazebo 플러그인 블록을 전개하며, 컨트롤러 YAML 경로는 `simulation_controllers` 인자로 받음
   - **[meshes/](src/robot_description/meshes/)** : visual DAE 7개와 collision STL 7개, 같은 프레임에 놓여 있어 origin을 공유하고 collision은 삼각형을 138개에서 1,874개로 줄인 감면 메쉬임
 - **ROS**
   - **[view_robot.launch.py](src/robot_description/launch/view_robot.launch.py)** : robot_state_publisher, joint_state_publisher_gui, RViz 동시 기동, 슬라이더로 관절을 움직여 URDF와 메쉬 정렬을 확인하는 뷰어 (`run-view`)
@@ -329,7 +334,7 @@ robot_kinematics_sandbox/
   - **[state_machine.py](src/robot_control/robot_control/state_machine.py)** : `MotionStateMachine`, idle, moving, jog 전이와 busy 거부, deadman timeout 판정 (사용처 motion_server)
   - **[conversions.py](src/robot_control/robot_control/conversions.py)** : `pose_to_matrix`, `matrix_to_pose`, Pose와 4×4 동차변환 상호 변환 (Shepperd)
 - **ROS**
-  - **[backend.py](src/robot_control/robot_control/backend.py)** : `SimBackend`, 관절 상태 소유와 `/joint_states` 발행 대행, 시뮬과 실로봇의 교체 경계 (토픽 `/joint_states`)
+  - **[backend.py](src/robot_control/robot_control/backend.py)** : `SimBackend`와 `GazeboBackend`, 관절 상태를 어디서 읽고 명령을 어디로 보낼지만 담당하는 교체 경계 (토픽 `/joint_states`, `/joint_position_controller/commands`)
   - **[motion_server.py](src/robot_control/robot_control/motion_server.py)** : 노드 `motion_server`, 서비스 목표를 수락 시점에 궤적으로 생성해 자기충돌까지 검사한 뒤 재생, jog 적분과 충돌 스텝 폐기, 상태 발행
     - 서비스 : `move_j`, `move_l`, `stop`
     - 토픽 : `/jog_twist`, `/motion_state`, `/tool_pose`
@@ -337,6 +342,8 @@ robot_kinematics_sandbox/
   - **[marker_server.py](src/robot_control/robot_control/marker_server.py)** : 노드 `marker_server`, 마커 우클릭 메뉴를 서비스 호출로 전달하며 드래그만으로는 미동작 (서비스 클라이언트 `move_j`, `move_l`, 토픽 `/tool_pose`)
   - **[teleop_keyboard.py](src/robot_control/robot_control/teleop_keyboard.py)** : 노드 `teleop_keyboard`, 키 입력을 base 프레임 twist로 발행하고 정지는 서버 deadman에 위임 (`run-teleop`, 토픽 `/jog_twist`)
   - **[control.launch.py](src/robot_control/launch/control.launch.py)** : robot_state_publisher, motion_server, marker_server, RViz 동시 기동, `use_rviz:=false` 헤드리스 지원 (`run-control`)
+  - **[gazebo.launch.py](src/robot_control/launch/gazebo.launch.py)** : Gazebo 기동 후 모델 스폰, 컨트롤러 활성화, motion_server 순서로 단계 실행, `headless:=true` 서버 전용 지원 (`run-gazebo`)
+  - **[config/controllers.yaml](src/robot_control/config/controllers.yaml)** : joint_state_broadcaster와 JointGroupPositionController 설정, `update_rate`는 motion_server의 50 Hz tick과 일치
 - **검증**
   - **[test/](src/robot_control/test/)** : test_state_machine, test_conversions 14건, 상태머신 전이와 busy 거부, deadman, 변환 왕복 (`test-control`)
 
@@ -429,6 +436,7 @@ cd robot_kinematics_sandbox
 ```bash
 sudo apt install ros-jazzy-xacro ros-jazzy-robot-state-publisher \
     ros-jazzy-joint-state-publisher-gui ros-jazzy-rviz2 \
+    ros-jazzy-ros-gz ros-jazzy-gz-ros2-control ros-jazzy-ros2-controllers \
     python3-numpy python3-pytest
 ```
 
@@ -511,6 +519,7 @@ ros2 run robot_control teleop_keyboard
 | `run-demo`        | FK/IK/궤적 데모 시퀀스 재생 (RViz)                | [demo.launch.py](src/robot_bringup/launch/demo.launch.py)                 |
 | `run-control`     | 런타임 제어 (motion_server + 목표 마커 + RViz)    | [control.launch.py](src/robot_control/launch/control.launch.py)           |
 | `run-teleop`      | 키보드 Cartesian jog (별도 셸, `/jog_twist` 발행) | [teleop_keyboard.py](src/robot_control/robot_control/teleop_keyboard.py)  |
+| `run-gazebo`      | Gazebo 물리 + ros2_control + motion_server (RViz) | [gazebo.launch.py](src/robot_control/launch/gazebo.launch.py)             |
 | `source-config`   | `docker/config.sh` 재로드                         | -                                                                         |
 | `cmd-help`        | 명령 목록 출력 (셸 진입 시 자동 출력)             | -                                                                         |
 
@@ -521,9 +530,9 @@ ros2 run robot_control teleop_keyboard
 ### 워크플로우
 
 ```
-view model ──▶ unit tests ──▶ play demo ──▶ edit sequence ──▶ runtime control
-    │              │              │               │                  │
- run-view   test-kinematics    run-demo    demo_sequence.py     run-control
+view model ──▶ unit tests ──▶ play demo ──▶ edit sequence ──▶ runtime control ──▶ physics
+    │              │              │               │                  │              │
+ run-view   test-kinematics    run-demo    demo_sequence.py     run-control    run-gazebo
             test-trajectory                                    + service call
               test-control                                     + RViz marker
                                                                + run-teleop
@@ -615,6 +624,23 @@ run-teleop
 
 기본 속도는 0.1 m/s와 0.5 rad/s이며, motion_server는 수신 twist를 `jog_max_linear`(0.25 m/s)와 `jog_max_angular`(1.0 rad/s)로 클램프함.
 
+### 6. Gazebo 연동
+
+```bash
+run-gazebo
+```
+
+같은 motion_server를 Gazebo 물리 위에서 구동하는데, `backend` 파라미터가 `gazebo`이면 관절 상태를 직접 적분하지 않고 joint_state_broadcaster가 발행한 측정값을 읽고 명령은 위치 컨트롤러로 보냄.  
+런치는 Gazebo 기동, 모델 스폰, joint_state_broadcaster, joint_position_controller, motion_server 순으로 앞 단계가 끝난 뒤 다음을 실행하는데, 모델이 존재하기 전에는 컨트롤러가 인터페이스를 점유할 수 없기 때문임.  
+URDF는 `sim_gazebo:=true`일 때만 ros2_control과 Gazebo 플러그인 블록을 전개하므로, 뷰어와 기구학 테스트는 시뮬레이터 태그 없이 같은 파일을 그대로 사용함.
+
+```bash
+run-gazebo headless:=true use_rviz:=false   # 물리만 검증 (GUI 없음)
+run-gazebo world:=empty.sdf                 # 월드 교체
+```
+
+목표 지정 방법은 5절과 동일하며, `/joint_states`는 이제 시뮬레이터가 발행함.
+
 ---
 
 ## 설정
@@ -630,9 +656,11 @@ XAUTHORITY_PATH="$HOME/.Xauthority"            # RViz X11 인증 경로
 
 ### Launch 인자
 
-| 인자       | 기본값 | 대상 launch                        | 설명                |
-| ---------- | ------ | ---------------------------------- | ------------------- |
-| `use_rviz` | `true` | demo.launch.py / control.launch.py | RViz 동시 실행 여부 |
+| 인자       | 기본값      | 대상 launch                                           | 설명                    |
+| ---------- | ----------- | ----------------------------------------------------- | ----------------------- |
+| `use_rviz` | `true`      | demo.launch.py / control.launch.py / gazebo.launch.py | RViz 동시 실행 여부     |
+| `headless` | `false`     | gazebo.launch.py                                      | Gazebo GUI 없이 서버만  |
+| `world`    | `empty.sdf` | gazebo.launch.py                                      | 불러올 Gazebo 월드 파일 |
 
 ---
 
@@ -723,7 +751,7 @@ ModuleNotFoundError: No module named 'robot_kinematics'
 - [x] 인터랙티브 마커 목표 지정 ([5.2\_인터랙티브 마커](#52-인터랙티브-마커))
 - [x] 키보드 텔레옵 (Cartesian jog) ([5.3\_키보드 jog](#53-키보드-jog))
 - [x] 캡슐 근사 자기충돌 검사 ([5\_런타임 제어](#5-런타임-제어))
-- [ ] Gazebo 연동 (ros2_control)
+- [x] Gazebo 연동 (ros2_control) ([6_Gazebo 연동](#6-gazebo-연동))
 - [ ] MuJoCo 연동
 - [ ] Isaac Sim 연동
 - [ ] 실로봇 연동 인터페이스 정리
