@@ -25,10 +25,17 @@ setup(
         # Install launch files
         (
             "share/" + package_name + "/launch",
-            ["launch/control.launch.py", "launch/gazebo.launch.py"],
+            [
+                "launch/control.launch.py",
+                "launch/gazebo.launch.py",
+                "launch/mujoco.launch.py",
+            ],
         ),
         # Install controller configuration
-        ("share/" + package_name + "/config", ["config/controllers.yaml"]),
+        (
+            "share/" + package_name + "/config",
+            ["config/gazebo_controllers.yaml", "config/mujoco_model.yaml"],
+        ),
         # Install RViz configuration
         ("share/" + package_name + "/rviz", ["rviz/control.rviz"]),
     ],

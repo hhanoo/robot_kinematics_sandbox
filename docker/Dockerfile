@@ -65,6 +65,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pytest \
     && rm -rf /var/lib/apt/lists/*
 
+# - Simulation (MuJoCo), a wheel rather than an apt package
+RUN pip install --no-cache-dir --break-system-packages \
+    mujoco
+
 # =========================================================================
 # Development Tools
 # =========================================================================

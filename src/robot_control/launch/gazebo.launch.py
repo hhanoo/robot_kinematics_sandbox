@@ -58,7 +58,7 @@ def generate_launch_description():
         [FindPackageShare("robot_description"), "urdf", "ur10e.urdf.xacro"]
     )
     controllers_file = PathJoinSubstitution(
-        [FindPackageShare("robot_control"), "config", "controllers.yaml"]
+        [FindPackageShare("robot_control"), "config", "gazebo_controllers.yaml"]
     )
     robot_description = ParameterValue(
         Command(

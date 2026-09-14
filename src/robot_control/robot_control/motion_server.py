@@ -29,7 +29,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
-from robot_control.backend import GazeboBackend, SimBackend
+from robot_control.backend import GazeboBackend, MujocoBackend, SimBackend
 from robot_control.conversions import matrix_to_pose, pose_to_matrix
 from robot_control.state_machine import MotionStateMachine
 from robot_interfaces.srv import MoveJ, MoveL
@@ -67,6 +67,8 @@ class MotionServer(Node):
         self.declare_parameter("jog_deadman_timeout", 0.3)
         self.declare_parameter("collision_margin", 0.0)
         self.declare_parameter("backend", "sim")
+        self.declare_parameter("viewer", False)
+        self.declare_parameter("mujoco_config", "")
         rate = self.get_parameter("rate").value
         home = self.get_parameter("home").value
         self.v_max = self.get_parameter("v_max").value
@@ -87,10 +89,19 @@ class MotionServer(Node):
 
         # State machine, backend, trajectory buffer
         self.sm = MotionStateMachine(self.get_parameter("jog_deadman_timeout").value)
-        # "gazebo" hands the joint state to the simulator; "sim" owns it here
+        # Only "sim" owns the joint state; the simulators report their own
         kind = self.get_parameter("backend").value
-        backend_type = GazeboBackend if kind == "gazebo" else SimBackend
-        self.backend = backend_type(self, self.chain.joint_names, home)
+        args = [self, self.chain.joint_names, home]
+        if kind == "mujoco":
+            self.backend = MujocoBackend(
+                *args,
+                self.get_parameter("viewer").value,
+                self.get_parameter("mujoco_config").value,
+            )
+        elif kind == "gazebo":
+            self.backend = GazeboBackend(*args)
+        else:
+            self.backend = SimBackend(*args)
         self._traj = None
         self._traj_i = 0
         self._jog_twist = np.zeros(6)

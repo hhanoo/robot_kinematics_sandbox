@@ -69,6 +69,11 @@ run-gazebo() {
     ros2 launch robot_control gazebo.launch.py "$@"
 }
 
+run-mujoco() {
+    source-ros-ws
+    ros2 launch robot_control mujoco.launch.py "$@"
+}
+
 # ===== Help =====
 cmd-help() {
     printf "\n[robot_kinematics_sandbox] Commands:\n\n"
@@ -90,6 +95,7 @@ cmd-help() {
     printf "    %-18s - %s\n" "run-control"      "Motion server + goal marker + RViz (runtime control)"
     printf "    %-18s - %s\n" "run-teleop"       "Keyboard Cartesian jog (separate shell, publishes /jog_twist)"
     printf "    %-18s - %s\n" "run-gazebo"       "Gazebo physics + ros2_control + motion server (RViz)"
+    printf "    %-18s - %s\n" "run-mujoco"       "MuJoCo physics inside the motion server (RViz)"
     printf "\n"
 
     printf "  Config / Help:\n"
