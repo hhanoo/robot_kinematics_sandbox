@@ -802,7 +802,7 @@ ModuleNotFoundError: No module named 'robot_kinematics'
 
 ## 라이선스
 
-이 프로젝트는 Apache-2.0 라이선스로 배포됩니다.
+이 프로젝트는 [Apache-2.0](LICENSE) 라이선스로 배포됩니다.
 
 ---
 

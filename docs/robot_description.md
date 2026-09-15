@@ -185,7 +185,7 @@ CAD에서 뽑은 메쉬는 원점과 축 방향이 DH 프레임과 일치하지 
   <visual>
     <origin xyz="0.6127 0 0.1762" rpy="1.5708 0 -1.5708"/>
     <geometry>
-      <mesh filename="package://robot_description/meshes/link2.dae"/>
+      <mesh filename="package://robot_description/meshes/visual/upperarm.dae"/>
     </geometry>
   </visual>
 </link>
@@ -215,7 +215,7 @@ CAD에서 뽑은 메쉬는 원점과 축 방향이 DH 프레임과 일치하지 
 - **한쪽만 고치면 RViz 화면과 계산 결과가 어긋남** : ROS 패키지 의존성 방향 때문에 (순수 numpy 코어는 `robot_description`을 import하지 않음) 하나로 합치지 않았고, 대신 테스트로 불일치를 검출함 ([5\_검증](#5-검증))
 - **`/tf`의 virtual link** : `link_N_joint_virtual` 프레임 6개가 TF 트리에 추가되므로, RViz의 TF 표시에서 프레임 수가 예상보다 많아 보이지만 정상임
 - **관절 한계** : `lower="-6.283" upper="6.283"` ($\pm 2\pi$)는 UR 실제 스펙을 반영한 값이며, IK 반환값에 별도 제한이 없다는 점과 합쳐지면 실로봇 연동 시 wrapping 처리가 필요해짐 ([_robot kinematics.md_ 4.6_IK 사용 시 주의점](robot_kinematics.md#46-ik-사용-시-주의점))
-- **동역학 정보** : 기구학 검증과 RViz 시각화가 목적이라 `<inertial>`, `<collision>` 태그를 두지 않았으며, Gazebo 연동 단계에서는 추가가 필수임
+- **동역학 정보** : `base_link`와 `link1`부터 `link6`까지 UR10e 공식 질량으로 원통 근사한 `<inertial>`과 감면 STL `<collision>`을 두었으며, 두 태그는 Gazebo, MuJoCo, 자기충돌 검사에서만 사용하므로 FK/IK 결과에는 영향이 없음
 
 ---
 

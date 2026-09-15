@@ -5,7 +5,7 @@
   <version>1.1.0</version>
   <description>Robot URDF/xacro description for kinematics sandbox</description>
   <maintainer email="woo980711@gmail.com">hhanoo</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache-2.0</license>
 
   <!-- ========================================================= -->
   <!-- Build tool dependencies -->
