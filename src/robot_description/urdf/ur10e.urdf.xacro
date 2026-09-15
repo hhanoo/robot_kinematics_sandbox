@@ -215,49 +215,49 @@
 
   <!-- Base link -->
   <link name="base_link">
-    <xacro:link_geometry mesh="base" xyz="0 0 0" rpy="0 0 0"/>
+    <xacro:link_geometry mesh="base_link" xyz="0 0 0" rpy="0 0 0"/>
     <xacro:cylinder_inertial mass="4.000" radius="0.096" length="0.110"
                              xyz="0.0022 -0.0009 0.0489" rpy="0.0227 0.0580 0.0007"/>
   </link>
 
   <!-- Link 1: Shoulder -->
   <link name="link1">
-    <xacro:link_geometry mesh="shoulder" xyz="0 0 0" rpy="-1.5708 -3.14159 0"/>
+    <xacro:link_geometry mesh="link1" xyz="0 0 0" rpy="-1.5708 -3.14159 0"/>
     <xacro:cylinder_inertial mass="7.369" radius="0.110" length="0.223"
                              xyz="-0.0002 -0.0027 0.0139" rpy="2.0637 -0.0289 -0.0483"/>
   </link>
 
   <!-- Link 2: Upper Arm -->
   <link name="link2">
-    <xacro:link_geometry mesh="upperarm" xyz="0.6127 0 0.1762" rpy="1.5708 0 -1.5708"/>
+    <xacro:link_geometry mesh="link2" xyz="0.6127 0 0.1762" rpy="1.5708 0 -1.5708"/>
     <xacro:cylinder_inertial mass="13.051" radius="0.111" length="0.750"
                              xyz="0.3156 0.0002 0.1646" rpy="-3.1345 -1.5332 3.1342"/>
   </link>
 
   <!-- Link 3: Forearm -->
   <link name="link3">
-    <xacro:link_geometry mesh="forearm" xyz="0.57155 0 0.0393" rpy="1.5708 0 -1.5708"/>
+    <xacro:link_geometry mesh="link3" xyz="0.57155 0 0.0393" rpy="1.5708 0 -1.5708"/>
     <xacro:cylinder_inertial mass="3.989" radius="0.081" length="0.679"
                              xyz="0.2926 0.0004 0.0518" rpy="3.1043 -1.5288 -3.1027"/>
   </link>
 
   <!-- Link 4: Wrist 1 -->
   <link name="link4">
-    <xacro:link_geometry mesh="wrist1" xyz="0 -0.135 0" rpy="0 0 0"/>
+    <xacro:link_geometry mesh="link4" xyz="0 -0.135 0" rpy="0 0 0"/>
     <xacro:cylinder_inertial mass="2.100" radius="0.073" length="0.134"
                              xyz="-0.0003 -0.0130 0.0057" rpy="0.2745 -0.0305 -0.0042"/>
   </link>
 
   <!-- Link 5: Wrist 2 -->
   <link name="link5">
-    <xacro:link_geometry mesh="wrist2" xyz="0 0.12 0" rpy="1.5708 0 0"/>
+    <xacro:link_geometry mesh="link5" xyz="0 0.12 0" rpy="1.5708 0 0"/>
     <xacro:cylinder_inertial mass="1.980" radius="0.063" length="0.126"
                              xyz="-0.0001 0.0114 0.0081" rpy="-0.1138 -0.0058 0.0003"/>
   </link>
 
   <!-- Link 6: Wrist 3 / Tool Flange -->
   <link name="link6">
-    <xacro:link_geometry mesh="wrist3" xyz="0 0 -0.1168" rpy="1.5708 0 0"/>
+    <xacro:link_geometry mesh="link6" xyz="0 0 -0.1168" rpy="1.5708 0 0"/>
     <xacro:cylinder_inertial mass="0.615" radius="0.050" length="0.101"
                              xyz="0.0003 -0.0020 -0.0294" rpy="1.7231 -0.0333 -0.0387"/>
   </link>

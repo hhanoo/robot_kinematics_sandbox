@@ -185,7 +185,7 @@ CAD에서 뽑은 메쉬는 원점과 축 방향이 DH 프레임과 일치하지 
   <visual>
     <origin xyz="0.6127 0 0.1762" rpy="1.5708 0 -1.5708"/>
     <geometry>
-      <mesh filename="package://robot_description/meshes/visual/upperarm.dae"/>
+      <mesh filename="package://robot_description/meshes/visual/link2.dae"/>
     </geometry>
   </visual>
 </link>

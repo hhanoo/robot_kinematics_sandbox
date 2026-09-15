@@ -134,23 +134,16 @@ def read_palette(mtl_path):
 def add_visual_meshes(spec, mesh_dir):
     """Draw the coloured meshes MuJoCo would otherwise never see.
 
-    MuJoCo cannot read the visual DAE files, so the same shapes were
-    converted to OBJ and split per material: its OBJ reader keeps only the
-    first group of a multi-material file. Each piece is placed on the
-    collision geom's own frame, which the xacro already aligned.
-
-    Colours come from the converted materials.mtl, so swapping the robot
-    swaps the palette with it.
+    MuJoCo's OBJ reader keeps only the first material group of a file.
     """
     palette = read_palette(mesh_dir / "materials.mtl")
     for body in spec.bodies:
         for collision in list(body.geoms):
             if not collision.meshname:
                 continue
-            for path in sorted(mesh_dir.glob(f"{collision.meshname}_*.obj")):
-                material = path.stem.split("_", 1)[1]
+            for path in sorted((mesh_dir / collision.meshname).glob("*.obj")):
                 mesh = spec.add_mesh()
-                mesh.name = path.stem
+                mesh.name = f"{collision.meshname}_{path.stem}"
                 mesh.file = str(path)
 
                 visual = body.add_geom()
@@ -158,7 +151,7 @@ def add_visual_meshes(spec, mesh_dir):
                 visual.meshname = mesh.name
                 visual.pos = collision.pos
                 visual.quat = collision.quat
-                visual.rgba = palette[material]
+                visual.rgba = palette[path.stem]
                 visual.group = VISUAL_GROUP
                 visual.contype = 0
                 visual.conaffinity = 0

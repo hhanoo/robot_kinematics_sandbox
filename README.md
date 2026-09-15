@@ -191,7 +191,7 @@ robot_kinematics_sandbox/
 ├── src/
 │   ├── robot_description/              # UR10e 모델 (xacro / 메쉬 / RViz)
 │   │   ├── urdf/ur10e.urdf.xacro       # 표준 DH → URDF 변환 매크로
-│   │   ├── meshes/visual/              # base.dae, shoulder~wrist3.dae
+│   │   ├── meshes/visual/              # base_link.dae, link1~link6.dae
 │   │   ├── meshes/collision/           # 감면 STL 7개 (visual과 같은 origin)
 │   │   ├── meshes/visual_mujoco/       # DAE를 못 읽는 MuJoCo용 재질별 OBJ + MTL
 │   │   ├── rviz/view_robot.rviz        # RViz 레이아웃
@@ -276,7 +276,7 @@ robot_kinematics_sandbox/
   - `cylinder_inertial` 매크로가 UR 공식 질량으로 원통 근사 관성을 채우는데, 관성이 없는 링크는 SDF 변환에서 통째로 사라져 Gazebo가 모델을 만들지 못하기 때문임
   - `sim_gazebo:=true`일 때만 world 고정 조인트와 ros2_control, Gazebo 플러그인 블록을 전개하며, 컨트롤러 YAML 경로는 `simulation_controllers` 인자로 받음
   - **[meshes/](src/robot_description/meshes/)** : visual DAE 7개와 collision STL 7개, 같은 프레임에 놓여 있어 origin을 공유하고 collision은 삼각형을 138개에서 1,874개로 줄인 감면 메쉬임
-  - **[meshes/visual_mujoco/](src/robot_description/meshes/visual_mujoco/)** : 같은 visual 형상을 재질별로 나눈 OBJ 20개와 색을 담은 `materials.mtl`, MuJoCo만 DAE를 읽지 못해 두는 예외이며 ROS 경로는 관행대로 DAE를 씀
+  - **[meshes/visual_mujoco/](src/robot_description/meshes/visual_mujoco/)** : 같은 visual 형상을 메쉬별 폴더에 재질별로 나눈 OBJ 20개(`link2/URBlue.obj` 형식)와 색을 담은 `materials.mtl`, MuJoCo만 DAE를 읽지 못해 두는 예외이며 ROS 경로는 관행대로 DAE를 씀
 - **ROS**
   - **[view_robot.launch.py](src/robot_description/launch/view_robot.launch.py)** : robot_state_publisher, joint_state_publisher_gui, RViz 동시 기동, 슬라이더로 관절을 움직여 URDF와 메쉬 정렬을 확인하는 뷰어 (`run-view`)
 

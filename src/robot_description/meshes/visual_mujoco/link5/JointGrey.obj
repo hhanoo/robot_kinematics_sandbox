@@ -1,4 +1,4 @@
-mtllib materials.mtl
+mtllib ../materials.mtl
 v -0 0.057047 0.163065
 v 0.005937 0.057047 0.162659
 v -0.011763 0.057047 0.161448
