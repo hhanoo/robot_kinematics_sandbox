@@ -193,6 +193,7 @@ robot_kinematics_sandbox/
 │   │   ├── urdf/ur10e.urdf.xacro       # 표준 DH → URDF 변환 매크로
 │   │   ├── meshes/visual/              # base.dae, shoulder~wrist3.dae
 │   │   ├── meshes/collision/           # 감면 STL 7개 (visual과 같은 origin)
+│   │   ├── meshes/visual_mujoco/       # DAE를 못 읽는 MuJoCo용 재질별 OBJ + MTL
 │   │   ├── rviz/view_robot.rviz        # RViz 레이아웃
 │   │   └── launch/view_robot.launch.py # 모델 뷰어 (joint_state_publisher_gui)
 │   │
@@ -238,7 +239,7 @@ robot_kinematics_sandbox/
 │       ├── config/gazebo_controllers.yaml   # Gazebo: 브로드캐스터 + 위치 컨트롤러
 │       ├── config/mujoco_model.yaml    # MuJoCo: armature, 서보 게인, 중력 보상
 │       ├── rviz/control.rviz           # 제어용 RViz 레이아웃
-│       └── test/                       # 상태머신과 변환 pytest (14)
+│       └── test/                       # 상태머신, 변환, MuJoCo 모델 pytest (18)
 │
 ├── docker/
 │   ├── Dockerfile                      # ROS 2 Jazzy desktop + ros_gz/ros2_control/mujoco
@@ -275,6 +276,7 @@ robot_kinematics_sandbox/
   - `cylinder_inertial` 매크로가 UR 공식 질량으로 원통 근사 관성을 채우는데, 관성이 없는 링크는 SDF 변환에서 통째로 사라져 Gazebo가 모델을 만들지 못하기 때문임
   - `sim_gazebo:=true`일 때만 world 고정 조인트와 ros2_control, Gazebo 플러그인 블록을 전개하며, 컨트롤러 YAML 경로는 `simulation_controllers` 인자로 받음
   - **[meshes/](src/robot_description/meshes/)** : visual DAE 7개와 collision STL 7개, 같은 프레임에 놓여 있어 origin을 공유하고 collision은 삼각형을 138개에서 1,874개로 줄인 감면 메쉬임
+  - **[meshes/visual_mujoco/](src/robot_description/meshes/visual_mujoco/)** : 같은 visual 형상을 재질별로 나눈 OBJ 20개와 색을 담은 `materials.mtl`, MuJoCo만 DAE를 읽지 못해 두는 예외이며 ROS 경로는 관행대로 DAE를 씀
 - **ROS**
   - **[view_robot.launch.py](src/robot_description/launch/view_robot.launch.py)** : robot_state_publisher, joint_state_publisher_gui, RViz 동시 기동, 슬라이더로 관절을 움직여 URDF와 메쉬 정렬을 확인하는 뷰어 (`run-view`)
 
@@ -354,7 +356,9 @@ robot_kinematics_sandbox/
   - **[config/gazebo_controllers.yaml](src/robot_control/config/gazebo_controllers.yaml)** : joint_state_broadcaster와 JointGroupPositionController 설정, `update_rate`는 motion_server의 50 Hz tick과 일치
   - **[config/mujoco_model.yaml](src/robot_control/config/mujoco_model.yaml)** : armature와 서보 게인, 중력 보상 여부, 로봇 크기에 따라 달라지는 값이라 URDF를 바꾸면 함께 조정해야 함
 - **검증**
-  - **[test/](src/robot_control/test/)** : test_state_machine, test_conversions 14건, 상태머신 전이와 busy 거부, deadman, 변환 왕복 (`test-control`)
+  - **[test/](src/robot_control/test/)** : test_state_machine, test_conversions, test_mujoco_model 18건, 상태머신 전이와 busy 거부, deadman, 변환 왕복, MuJoCo 모델의 질량과 서보와 형상 (`test-control`)
+    - MuJoCo 테스트 4건은 모두 오류 없이 수치만 틀렸던 실패를 막으며, 각 버그를 되살렸을 때 해당 테스트가 실패하는 것을 확인함
+    - `mujoco`나 `xacro`가 없는 환경에서는 실패 대신 건너뜀
 
 ---
 
@@ -523,7 +527,7 @@ ros2 run robot_control teleop_keyboard
 | `test-kinematics` | FK / Jacobian / IK / jog 단위 테스트 (pytest)     | [robot_kinematics/test/](src/robot_kinematics/test/)                      |
 | `test-trajectory` | 궤적 생성 단위 테스트 (pytest)                    | [robot_trajectory/test/](src/robot_trajectory/test/)                      |
 | `test-bringup`    | 데모 시퀀스 단위 테스트 (pytest)                  | [robot_bringup/test/](src/robot_bringup/test/)                            |
-| `test-control`    | 상태머신과 변환 단위 테스트 (pytest)              | [robot_control/test/](src/robot_control/test/)                            |
+| `test-control`    | 상태머신, 변환, MuJoCo 모델 테스트 (pytest)       | [robot_control/test/](src/robot_control/test/)                            |
 | `run-view`        | UR10e 모델 뷰어 (RViz + 슬라이더)                 | [view_robot.launch.py](src/robot_description/launch/view_robot.launch.py) |
 | `run-demo`        | FK/IK/궤적 데모 시퀀스 재생 (RViz)                | [demo.launch.py](src/robot_bringup/launch/demo.launch.py)                 |
 | `run-control`     | 런타임 제어 (motion_server + 목표 마커 + RViz)    | [control.launch.py](src/robot_control/launch/control.launch.py)           |
@@ -562,7 +566,7 @@ joint_state_publisher_gui 슬라이더로 각 관절을 움직여 DH 기반 URDF
 test-kinematics   # 35 cases: FK vs URDF 체인, Jacobian vs 수치미분, IK 왕복, jog 스텝, 자기충돌
 test-trajectory   # 20 cases: 5차 다항식 경계조건/한계, 경로 기하, 관절 연속성
 test-bringup      # 9 cases: 시작과 끝 자세, 관절 연속성, 세그먼트 범위, 직선과 원 기하, 전 구간 무충돌
-test-control      # 14 cases: 상태머신 전이와 busy 거부, deadman timeout, Pose 변환 왕복
+test-control      # 18 cases: 상태머신 전이, deadman timeout, Pose 변환 왕복, MuJoCo 모델
 ```
 
 ### 3. 데모 재생
@@ -673,11 +677,11 @@ URDF가 표현하지 못하는 3가지를 [mujoco_model.py](src/robot_control/ro
 
 시뮬레이터별로 보아야 할 자리는 아래 한 줄씩임.
 
-| 대상   | 런치                 | 설정                          | 백엔드          | visual 메쉬            |
-| ------ | -------------------- | ----------------------------- | --------------- | ---------------------- |
-| RViz만 | `control.launch.py`  | -                             | `SimBackend`    | `meshes/visual/`       |
-| Gazebo | `gazebo.launch.py`   | `config/gazebo_controllers.yaml` | `GazeboBackend` | `meshes/visual/`       |
-| MuJoCo | `mujoco.launch.py`   | `config/mujoco_model.yaml`    | `MujocoBackend` | `meshes/visual_mujoco/` |
+| 대상   | 런치                | 설정                             | 백엔드          | visual 메쉬             |
+| ------ | ------------------- | -------------------------------- | --------------- | ----------------------- |
+| RViz만 | `control.launch.py` | -                                | `SimBackend`    | `meshes/visual/`        |
+| Gazebo | `gazebo.launch.py`  | `config/gazebo_controllers.yaml` | `GazeboBackend` | `meshes/visual/`        |
+| MuJoCo | `mujoco.launch.py`  | `config/mujoco_model.yaml`       | `MujocoBackend` | `meshes/visual_mujoco/` |
 
 ---
 
